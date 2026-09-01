@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>抖音续火花助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <span class="brand">🔥</span>
+      <h1>抖音续火花助手</h1>
+      <span id="autoState" class="pill">--</span>
+    </header>
+
+    <section class="card">
+      <div class="row">
+        <span class="label">今日状态</span>
+        <span id="todayStatus" class="value">读取中…</span>
+      </div>
+      <div class="row">
+        <span class="label">上次执行</span>
+        <span id="lastRun" class="value">--</span>
+      </div>
+      <div class="row">
+        <span class="label">上次结果</span>
+        <span id="lastResult" class="value">--</span>
+      </div>
+    </section>
+
+    <section class="actions">
+      <button id="runNow" class="primary">立即执行一次</button>
+      <button id="openOptions">设置</button>
+    </section>
+
+    <section class="card">
+      <div class="logs-head">
+        <span class="label">最近日志</span>
+        <button id="clearLogs" class="link">清空</button>
+      </div>
+      <ul id="logs" class="logs"></ul>
+    </section>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

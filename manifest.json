@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "抖音续火花助手",
+  "short_name": "续火花",
+  "version": "1.9.0",
+  "description": "每天自动为抖音好友续火花。后台静默执行，不抢焦点，同一天不重复发送。",
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "notifications",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://www.douyin.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.douyin.com/*"
+      ],
+      "js": [
+        "content/dom-selectors.js",
+        "content/dom-utils.js",
+        "content/runner.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": false
+    }
+  ],
+  "action": {
+    "default_title": "抖音续火花助手",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,164 @@
+/* 弹窗样式：抖音品牌红为强调色，深色可自动适配系统主题 */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #fafafb;
+  --fg: #17171a;
+  --muted: #82838c;
+  --line: #ececf0;
+  --accent: #fe2c55;
+  --accent-soft: #fff1f4;
+  --ok: #12a150;
+  --ok-soft: #eafaf1;
+  --warn: #b8730a;
+  --err: #e0342f;
+  --err-soft: #fdeeee;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 12px rgba(0, 0, 0, .05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1b1f;
+    --bg-soft: #22222a;
+    --fg: #f2f2f5;
+    --muted: #9a9ba6;
+    --line: #32323c;
+    --accent-soft: #3a1f27;
+    --ok-soft: #1a3326;
+    --err-soft: #3a2222;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 12px rgba(0, 0, 0, .25);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  width: 344px;
+  padding: 14px;
+  font: 13px/1.55 "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 头部 ---------- */
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.brand {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  flex: 0 0 auto;
+  background: linear-gradient(150deg, #ff7a3c, #fe2c55 70%);
+  display: grid; place-items: center;
+  font-size: 14px; line-height: 1;
+  box-shadow: 0 2px 6px rgba(254, 44, 85, .32);
+}
+h1 { font-size: 14.5px; font-weight: 600; margin: 0; flex: 1; letter-spacing: .2px; }
+
+.pill {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.pill.on  { background: var(--ok-soft);  color: var(--ok);  border-color: transparent; }
+.pill.off { background: var(--err-soft); color: var(--err); border-color: transparent; }
+
+/* ---------- 卡片 ---------- */
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 12px;
+  margin-bottom: 10px;
+  background: var(--bg-soft);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+.label { color: var(--muted); flex: 0 0 56px; font-size: 12px; }
+.value { text-align: right; word-break: break-word; font-weight: 500; }
+.value.ok  { color: var(--ok); }
+.value.err { color: var(--err); }
+
+/* ---------- 按钮 ---------- */
+.actions { display: flex; gap: 8px; margin-bottom: 11px; }
+
+button {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  font: 500 13px/1.2 inherit;
+  transition: background .15s, border-color .15s, transform .06s;
+}
+button:hover { border-color: #c9c9d2; background: var(--bg-soft); }
+button:active { transform: translateY(1px); }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(254, 44, 85, .28);
+}
+button.primary:hover { background: #ec2049; border-color: #ec2049; }
+button.primary:disabled {
+  opacity: .55; cursor: default; transform: none;
+  box-shadow: none;
+}
+
+button.link {
+  flex: 0 0 auto;
+  border: none; background: none;
+  color: var(--muted);
+  padding: 0; font-size: 12px; font-weight: 400;
+  text-decoration: none;
+}
+button.link:hover { color: var(--accent); background: none; }
+
+/* ---------- 日志 ---------- */
+.logs-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.logs-head .label { flex: 0 0 auto; font-weight: 600; color: var(--fg); font-size: 12.5px; }
+
+.logs {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 232px; overflow-y: auto;
+  scrollbar-width: thin;
+}
+.logs::-webkit-scrollbar { width: 6px; }
+.logs::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+.logs li {
+  border-top: 1px solid var(--line);
+  padding: 5px 0;
+  display: flex; gap: 8px; align-items: baseline;
+}
+.logs li:first-child { border-top: none; }
+.logs .t {
+  color: var(--muted); flex: 0 0 38px;
+  font-variant-numeric: tabular-nums; font-size: 11.5px;
+}
+.logs .m { flex: 1; word-break: break-word; }
+.logs .who { color: var(--accent); font-weight: 500; }
+.logs li.warn  .m { color: var(--warn); }
+.logs li.error .m { color: var(--err); }
+
+.empty { color: var(--muted); text-align: center; padding: 14px 0; }
