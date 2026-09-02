@@ -392,7 +392,8 @@
   function ownSnapshot(selectors) {
     const list = currentChatList(selectors);
     if (!list) return { count: 0, lastText: '', totalCount: 0, ok: false };
-    const msgs = S.findMessages(list, selectors);
+    // 消息区是倒序渲染的，必须排成「旧 -> 新」，否则 lastText 取到的是最旧那条
+    const msgs = S.orderMessagesOldToNew(S.findMessages(list, selectors));
     const own = msgs.filter((m) => S.isOwnMessage(m, selectors));
     return {
       count: own.length,

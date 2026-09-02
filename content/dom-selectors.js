@@ -794,16 +794,21 @@
   }
   // ------------------------------ 聊天区 ------------------------------
 
-  function findChatMessageList(root, selectors) {
-    const scope = root || (typeof document !== 'undefined' ? document : null);
-    if (!scope) return null;
-    const sel = (selectors && selectors.chatMessageList) || DEFAULT_SELECTORS.chatMessageList;
-    const direct = queryFirstVisible(scope, sel.css, true);
-    if (direct) return direct;
-    // 结构兜底：包含消息气泡最多的容器
+  /*
+   * 消息区容器：找「真正包含所有消息气泡的那个容器」。
+   *
+   * 真实结构（2026-09 采集）里每条消息各自包在自己的 [data-index] 里：
+   *   <div data-index="0"><div class="messageMessageBoxmessageBox">…</div></div>
+   *   <div data-index="1"><div class="messageMessageBoxmessageBox">…</div></div>
+   * 所以按 parentElement 分组时每组只有 1 条，会选中「只含最新一条消息」的
+   * data-index 包裹层 —— 这是重复发送与「聊天记录没加载出来」的共同根因：
+   * 只看得到最新 1 条，是自己发的就跳过、是对方发的就重发，完全靠运气。
+   *
+   * 正确做法：取所有消息气泡的最近公共祖先（LCA）。
+   * 这样不依赖任何类名，抖音改版也不会失效。
+   */
+  function messageNodesIn(scope, selectors) {
     const msgSel = (selectors && selectors.message) || DEFAULT_SELECTORS.message;
-    let best = null;
-    let bestCount = 0;
     for (const css of msgSel.css || []) {
       let nodes;
       try {
@@ -811,21 +816,134 @@
       } catch (err) {
         continue;
       }
-      const groups = new Map();
-      for (const node of nodes) {
-        const parent = node.parentElement;
-        if (!parent) continue;
-        groups.set(parent, (groups.get(parent) || 0) + 1);
-      }
-      for (const [parent, count] of groups) {
-        if (count > bestCount) {
-          bestCount = count;
-          best = parent;
+      nodes = nodes.filter((n) => !nodes.some((o) => o !== n && o.contains(n)));
+      nodes = nodes.filter((n) => isRealMessage(n));
+      if (nodes.length > 0) return nodes;
+    }
+    return [];
+  }
+
+  // 一组节点的最近公共祖先
+  function lowestCommonAncestor(nodes) {
+    if (!nodes || nodes.length === 0) return null;
+    let anc = nodes[0].parentElement;
+    while (anc) {
+      let coversAll = true;
+      for (const n of nodes) {
+        if (!anc.contains(n)) {
+          coversAll = false;
+          break;
         }
       }
-      if (best) break;
+      if (coversAll) return anc;
+      anc = anc.parentElement;
     }
-    return best;
+    return null;
+  }
+
+  function findChatMessageList(root, selectors) {
+    const scope = root || (typeof document !== 'undefined' ? document : null);
+    if (!scope) return null;
+    const sel = (selectors && selectors.chatMessageList) || DEFAULT_SELECTORS.chatMessageList;
+
+    const all = messageNodesIn(scope, selectors);
+
+    /*
+     * 语义选择器优先，但必须验证它真的装着大部分消息。
+     * 否则一个恰好匹配上的小节点会赢过真正的容器
+     * （这正是只看到 1 条消息那个故障的形态）。
+     */
+    for (const css of sel.css || []) {
+      let nodes;
+      try {
+        nodes = Array.from(scope.querySelectorAll(css));
+      } catch (err) {
+        continue;
+      }
+      for (const node of nodes) {
+        if (!isVisible(node)) continue;
+        if (all.length === 0) return node;
+        let owned = 0;
+        for (const m of all) if (node.contains(m)) owned += 1;
+        if (owned >= all.length) return node;
+      }
+    }
+
+    // 结构兜底：所有消息气泡的最近公共祖先
+    const lca = lowestCommonAncestor(all);
+    if (lca) return lca;
+    return null;
+  }
+
+  /*
+   * 把消息按「从旧到新」排好。
+   *
+   * 抖音消息区是**倒序渲染**的（虚拟列表的 rotate(180deg) 技巧），
+   * 真实页面实测：DOM 里第一条在屏幕下方（最新），最后一条在上方（最旧）。
+   * 而「今天」判定要靠时间戳继承 —— 抖音只在时间间隔较大时插一次时间戳，
+   * 同组后续消息没有时间戳，必须继承**视觉上前一条**（更旧那条）的归属。
+   * 按 DOM 顺序遍历会继承到更新的那条，方向完全反了。
+   */
+  function orderMessagesOldToNew(messages) {
+    const list = Array.from(messages || []);
+    if (list.length < 2) return list;
+
+    // 优先用几何位置：视觉上越靠上越旧
+    try {
+      const doc = list[0].ownerDocument;
+      if (documentHasLayout(doc)) {
+        const tops = list.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { el, top: r.top };
+        });
+        if (tops.some((t) => t.top !== tops[0].top)) {
+          return tops.sort((a, b) => a.top - b.top).map((t) => t.el);
+        }
+      }
+    } catch (err) {
+      /* ignore */
+    }
+
+    // 退而用 data-index：倒序列表里 index 越大越旧
+    const indexed = list.map((el) => {
+      let node = el;
+      let idx = null;
+      for (let d = 0; node && d < 4; d += 1) {
+        if (node.getAttribute && node.getAttribute('data-index') !== null) {
+          idx = Number(node.getAttribute('data-index'));
+          break;
+        }
+        node = node.parentElement;
+      }
+      return { el, idx };
+    });
+    if (indexed.every((x) => Number.isFinite(x.idx))) {
+      const ascending = indexed[0].idx < indexed[indexed.length - 1].idx;
+      // index 随 DOM 递增说明是倒序渲染（0 = 最新），需要反过来
+      if (ascending) return indexed.slice().sort((a, b) => b.idx - a.idx).map((x) => x.el);
+      return indexed.slice().sort((a, b) => a.idx - b.idx).map((x) => x.el);
+    }
+
+    return list;
+  }
+
+  /*
+   * 是否为一条真实消息气泡。
+   * 除文字外，火花表情 / 图片 / 语音 / 自定义气泡（canvas）都算 ——
+   * 这类气泡没有任何文本节点，按文本判断会被整条丢弃。
+   * 同时排除虚拟列表的零高度占位块（如 <div style="flex-shrink:0;height:0px">）。
+   */
+  function isRealMessage(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (text(el).length > 0) return true;
+    try {
+      if (el.querySelector('img, canvas, svg, video, audio, [class*="moji"], [class*="sticker"], [class*="image"], [class*="picture"], [class*="audio"], [class*="voice"]')) {
+        return true;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    return false;
   }
 
   function findMessages(listEl, selectors) {
@@ -840,10 +958,17 @@
       }
       // 去掉嵌套的父子重复（只保留最外层匹配）
       nodes = nodes.filter((n) => !nodes.some((other) => other !== n && other.contains(n)));
-      nodes = nodes.filter((n) => text(n).length > 0);
+      /*
+       * 不能只保留「有文字」的消息。
+       * 火花表情、图片、语音这类气泡完全没有文本节点，
+       * 一旦被过滤掉就会造成两种真实故障：
+       *   · 整个会话只有表情 -> 返回 0 条 -> 误判「聊天记录没加载出来」而跳过（该发的没发）
+       *   · 我方表情消息被丢掉 -> 误判「今天没发过」（重复打扰）
+       */
+      nodes = nodes.filter((n) => isRealMessage(n));
       if (nodes.length > 0) return nodes;
     }
-    return Array.from(listEl.children || []).filter((n) => n.nodeType === 1 && text(n).length > 0);
+    return Array.from(listEl.children || []).filter((n) => n.nodeType === 1 && isRealMessage(n));
   }
 
   function isOwnMessage(msgEl, selectors) {
@@ -914,7 +1039,7 @@
   function hasOwnMessageToday(chatListEl, selectors, now) {
     const result = { sentToday: false, dividerFound: false };
     if (!chatListEl) return result;
-    const messages = findMessages(chatListEl, selectors);
+    const messages = orderMessagesOldToNew(findMessages(chatListEl, selectors));
     if (messages.length === 0) return result;
     const messageSet = new Set(messages);
     const divSel = (selectors && selectors.todayDivider) || DEFAULT_SELECTORS.todayDivider;
@@ -1211,6 +1336,9 @@
     detectSpark,
     findChatMessageList,
     findMessages,
+    isRealMessage,
+    orderMessagesOldToNew,
+    lowestCommonAncestor,
     isOwnMessage,
     isTodayDivider,
     hasOwnMessageToday,

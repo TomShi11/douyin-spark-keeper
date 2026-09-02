@@ -6,9 +6,9 @@
 
 开机后在后台静默完成，不抢焦点、不弹窗、不重复打扰。
 
-[![版本](https://img.shields.io/badge/version-1.9.1-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.9.2-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285f4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![测试](https://img.shields.io/badge/tests-172%20passed-12a150)](#开发)
+[![测试](https://img.shields.io/badge/tests-181%20passed-12a150)](#开发)
 [![License](https://img.shields.io/badge/license-MIT-666)](LICENSE)
 
 [**⬇️ 下载安装**](https://huohua.11s.space) · [安装说明](#安装) · [工作原理](#工作原理) · [常见问题](#常见问题)
@@ -104,6 +104,10 @@
 
 因此**不带日期前缀的纯时刻即为今天**。遗漏此规则会把当日早间消息误判为历史记录，造成重复发送。
 
+另需注意消息区是**倒序渲染**的（`data-index=0` 为最新）。抖音只在间隔较大时插入一次时间戳，同组后续消息需继承**更旧那条**的归属，因此判定前必须先把消息排成「旧 → 新」，否则继承方向相反。
+
+消息气泡也**不能按有无文字筛选** —— 火花表情、图片、语音气泡没有文本节点，一旦丢弃会导致「读不到聊天记录」而漏发。
+
 ### 输入处理
 
 抖音使用字节自研的 editor-kit 富文本编辑器，其空状态本身是一个空段落，直接插入文本会在消息上方产生空行。正确做法是全选已有内容后使用 `insertText` 替换，随后清理残留空块。
@@ -141,7 +145,9 @@ console.log(JSON.stringify(
 | 昵称 | `.conversationConversationItemtitle` |
 | 火花标记 | `.commonStreakstreakContainer` |
 | 火花天数 | `.commonStreaknormalText` |
-| 消息气泡 | `.messageMessageBoxmessageBox` |
+| 消息气泡 | `.messageMessageBoxmessageBox`（各自包在独立的 `[data-index]` 里，**无共同容器类名**）|
+| 消息区容器 | 取所有气泡的最近公共祖先（LCA），不能按 `parentElement` 分组 |
+| 渲染顺序 | **倒序**：`data-index=0` 是最新消息（虚拟列表 `rotate(180deg)`）|
 | 我方消息 | class 含 `isFromMe` |
 | 消息时间 | `.MessageBoxTimetimeLayout` |
 | 输入框 | `.messageEditorinputArea` |
@@ -209,7 +215,7 @@ douyin-spark-keeper/
 ```bash
 cd work
 npm install jsdom --no-save
-node --test "tests/*.test.mjs"    # 172 项
+node --test "tests/*.test.mjs"    # 181 项
 node gen-icons.mjs                # 重新生成图标
 ```
 
