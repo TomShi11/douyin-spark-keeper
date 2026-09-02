@@ -13,9 +13,10 @@ export const CHAT_URL_FALLBACKS = [
 
 // 判定「当前页面是否聊天页」的路径特征
 export const CHAT_PATH_PATTERN = /\/(chat|im)(\/|$)/;
-// 发送内容。纯文本最不容易触发富文本编辑器的换行/空行问题。
-// 可在设置页改成 emoji 或其他文字。
-export const SPARK_TEXT = '续火花';
+// 发送内容：默认就是火花表情 🔥。
+// 注意不要用 [火花] 这种方括号写法，抖音不会解析，会原样发成文字。
+// 可在设置页改成其他 emoji 或文字。
+export const SPARK_TEXT = '🔥';
 
 export const ALARM_RUN = 'spark:run';
 export const ALARM_RETRY = 'spark:retry';

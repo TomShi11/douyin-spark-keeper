@@ -162,10 +162,33 @@
     // 去掉结尾的空节点
     while (el.lastChild && isBlank(el.lastChild)) el.removeChild(el.lastChild);
   }
+  /*
+   * 富文本编辑器里的 emoji 常被换成 <img alt="🔥">（抖音 editor-kit 就是这么干的）。
+   * 这类节点没有文本，只读 textContent 会得到空字符串，
+   * 于是「内容有没有写进输入框」的校验会误判为失败 -> 该发的消息被跳过。
+   * 所以统一从图片携带的 alt / data-emoji 等属性把字符还原出来。
+   */
+  function emojiTextOf(node) {
+    if (!node || node.nodeType !== 1 || !node.getAttribute) return '';
+    const pick = (name) => node.getAttribute(name) || '';
+    return (pick('alt') || pick('data-emoji') || pick('data-text') ||
+      pick('aria-label') || pick('title') || '').trim();
+  }
+
   function readInputValue(el) {
     if (!el) return '';
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el.value || '';
-    return (el.textContent || '').replace(/\u200b/g, '');
+    let out = '';
+    const walk = (node) => {
+      for (const child of node.childNodes) {
+        if (child.nodeType === 3) out += child.nodeValue || '';
+        else if (child.nodeType !== 1) continue;
+        else if (child.tagName === 'IMG') out += emojiTextOf(child);
+        else walk(child);
+      }
+    };
+    walk(el);
+    return out.replace(/\u200b/g, '');
   }
 
   // 全选输入框内容（contenteditable 用）
@@ -298,7 +321,9 @@
   function normalizeEditorContent(el, expected) {
     if (!el || el.nodeType !== 1) return;
     const clean = (s) => (s || '').replace(/[\s\u200b\ufeff\u00a0]/g, '');
-    if (clean(el.textContent) !== clean(expected)) return;
+    // 用 readInputValue 而不是 textContent：emoji 可能已被编辑器换成 <img alt="..">，
+    // 那时 textContent 是空的，会让归一化整个跳过，空行就留下来了。
+    if (clean(readInputValue(el)) !== clean(expected)) return;
 
     const meaningful = 'img, canvas, svg, video, input, textarea, audio, object, embed';
     const isBlank = (node) => {
@@ -453,6 +478,7 @@
     typeText,
     pressEnter,
     readInputValue,
+    emojiTextOf,
     clearInput,
     selectAllIn,
     selectAllContents,

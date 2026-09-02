@@ -26,7 +26,7 @@
   const U = globalThis.DSK_UTILS;
 
   // 与 shared/config.js 保持一致（内容脚本无法 import ESM）
-  const SPARK_TEXT = '续火花'; // 与 shared/config.js 保持一致；可在设置页改
+  const SPARK_TEXT = '🔥'; // 火花表情；与 shared/config.js 保持一致，可在设置页改
   const TIMEOUTS = {
     conversationList: 20000,
     chatPanel: 12000,

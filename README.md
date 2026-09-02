@@ -6,9 +6,9 @@
 
 开机后在后台静默完成，不抢焦点、不弹窗、不重复打扰。
 
-[![版本](https://img.shields.io/badge/version-1.9.2-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.9.3-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285f4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![测试](https://img.shields.io/badge/tests-181%20passed-12a150)](#开发)
+[![测试](https://img.shields.io/badge/tests-193%20passed-12a150)](#开发)
 [![License](https://img.shields.io/badge/license-MIT-666)](LICENSE)
 
 [**⬇️ 下载安装**](https://huohua.11s.space) · [安装说明](#安装) · [工作原理](#工作原理) · [常见问题](#常见问题)
@@ -71,7 +71,7 @@
 | 项目 | 默认值 |
 |---|---|
 | 自动执行 | 开启 |
-| 发送内容 | `续火花` |
+| 发送内容 | 🔥（火花表情） |
 | 单次上限 | 50 人（最大 100） |
 | 发送间隔 | 2000–5000 毫秒随机 |
 | 白名单 / 黑名单 | 空 |
@@ -158,9 +158,9 @@ console.log(JSON.stringify(
 <details>
 <summary><b>发送内容能用表情吗？</b></summary>
 
-可以，在设置页填入 emoji 字符即可。但**不要填 `[火花]` 这类方括号写法**，抖音不会解析为表情，会原样显示为文字。
+默认发的就是火花表情 🔥。也可以在设置页改成其他 emoji 或短语。
 
-默认值 `续火花` 为纯文本，最不易触发富文本编辑器的换行问题。
+但**不要填 `[火花]` 这类方括号写法**，抖音不会解析为表情，会原样显示为文字。
 </details>
 
 <details>
@@ -215,7 +215,7 @@ douyin-spark-keeper/
 ```bash
 cd work
 npm install jsdom --no-save
-node --test "tests/*.test.mjs"    # 181 项
+node --test "tests/*.test.mjs"    # 193 项
 node gen-icons.mjs                # 重新生成图标
 ```
 
