@@ -449,7 +449,8 @@
     {
       const today = S.hasOwnMessageToday(chatListEl, selectors, new Date());
       if (today.sentToday) {
-        log('info', 'skipped_already_sent', '今天已经聊过了，不再打扰', nickname);
+        const reason = today.reason ? `[${today.reason}]` : '';
+        log('info', 'skipped_already_sent', `今天已经聊过了，不再打扰 ${reason}`.trim(), nickname);
         return { status: 'skipped', detail: 'already_sent_today' };
       }
       if (config && config.debugDom) {

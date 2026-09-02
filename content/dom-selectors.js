@@ -1093,22 +1093,33 @@
     const stamped = messages.filter((m) => stampOf(m) !== null);
     if (stamped.length > 0) {
       let inToday = false;
-      let sawStamp = false;
       for (const msg of messages) {
         const stamp = stampOf(msg);
         if (stamp) {
-          sawStamp = true;
           inToday = isTodayDivider(stamp, selectors, now);
           if (inToday) result.dividerFound = true;
         }
         // 没有时间戳的消息，归属继承前一个时间戳
         if (inToday && isOwnMessage(msg, selectors)) {
           result.sentToday = true;
+          result.reason = 'inherit_stamp_today';
           return result;
         }
-
       }
-      void sawStamp;
+      /*
+       * 会话里至少存在一条已识别时间戳，但都不是今天
+       * （典型场景：整条会话都是昨天的对话，消息区里只有一条「昨天 01:01」之类
+       *   的时间戳，其余无戳。沿 DOM 顺序遍历继承 inToday 始终为 false，
+       *   继承分支不会命中，必须在这里兜底判今天没发过。
+       * 旧代码此处直接 return，让控制流落进下面的 no_stamp_own_message 兜底，
+       *   在有「昨天」戳 + 我方消息的情况下被误触发，把今天没发过判成已发
+       *   —— 真实故障：2026-09-03 02:07 何子帆「昨天 01:01」+ 6 条我方消息）。
+       */
+      if (!result.dividerFound) {
+        result.sentToday = false;
+        result.reason = 'has_stamp_not_today';
+        return result;
+      }
       return result;
     }
 
