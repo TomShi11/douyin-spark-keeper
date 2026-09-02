@@ -235,6 +235,88 @@
     return atListBottom(scroller) ? 'bottom' : 'stuck';
   }
 
+  // 当前渲染窗口里最小的虚拟列表序号；null 表示页面没有 data-index
+  function minRenderedIndex(listEl, selectors) {
+    let min = null;
+    for (const el of S.findConversationItems(listEl, selectors)) {
+      const key = S.conversationKey(el, selectors);
+      if (!key || key.index === null || key.index === undefined) continue;
+      const idx = Number(key.index);
+      if (!Number.isFinite(idx)) continue;
+      if (min === null || idx < min) min = idx;
+    }
+    return min;
+  }
+
+  function atRenderedTop(scroller, listEl, selectors) {
+    const min = minRenderedIndex(listEl, selectors);
+    if (min !== null) return min <= 0;
+    return scroller.scrollTop <= 1;
+  }
+
+  /**
+   * 把会话列表的**渲染窗口**拉回顶部。
+   *
+   * 这是 advanceList 的反向版，同样不能只改 scrollTop：
+   * 预扫描会把列表滚到底，而后台标签页里 rAF 被暂停，
+   * 单纯把 scrollTop 归零并不会让虚拟列表重新渲染顶部的行 ——
+   * 结果发送阶段面对的还是列表最底部那一屏（往往全是没火花的人），
+   * 而 advanceList 只会向下滚，于是立刻判定「到底了」，一个人都发不出去。
+   *
+   * 返回 true 表示确实回到了顶部。
+   */
+  async function rewindListToTop(scroller, listEl, selectors) {
+    const kick = () => {
+      try {
+        scroller.scrollTop = 0;
+      } catch (err) {
+        /* ignore */
+      }
+      try {
+        scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+      } catch (err) {
+        /* ignore */
+      }
+    };
+
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      if (atRenderedTop(scroller, listEl, selectors)) return true;
+
+      const before = renderedSignature(listEl, selectors);
+
+      // 快路径：归零 + 派发 scroll，唤醒事件驱动的虚拟列表
+      kick();
+      let changed = await U.waitFor(
+        () => (renderedSignature(listEl, selectors) !== before ? true : null),
+        900,
+        150
+      );
+
+      // 兜底：让当前首个已渲染项 scrollIntoView 驱动一次，再归零
+      if (!changed) {
+        const first = S.findConversationItems(listEl, selectors)[0];
+        if (first && typeof first.scrollIntoView === 'function') {
+          try {
+            first.scrollIntoView({ block: 'start', inline: 'nearest' });
+          } catch (err) {
+            /* ignore */
+          }
+        }
+        kick();
+        changed = await U.waitFor(
+          () => (renderedSignature(listEl, selectors) !== before ? true : null),
+          900,
+          150
+        );
+      }
+
+      // 渲染不再变化且滚动条已在最上面：认为到顶了
+      if (!changed && scroller.scrollTop <= 1) {
+        return atRenderedTop(scroller, listEl, selectors);
+      }
+    }
+    return atRenderedTop(scroller, listEl, selectors);
+  }
   /* ------------------------------ 只读预扫描 ------------------------------ */
 
   /**
@@ -285,7 +367,7 @@
       collect();
     }
 
-    await scrollListToTop(scroller);
+    await rewindListToTop(scroller, listEl, selectors);
     collect();
 
     const all = Array.from(seen.values());
@@ -591,7 +673,11 @@
       let sent = 0, skipped = 0, failed = 0;
       let consecutiveFailures = 0;
       let aborted = null;
+      // 预扫描看到、但还没轮到的人
+      const remainingExpected = () =>
+        scannedSpark.filter((t) => t.key && t.key.avatar && !processed.has(t.key.avatar)).map((t) => t.nickname);
 
+      let sweep = 1;
 
       const maxPerRun = Number(config.maxPerRun) > 0 ? Number(config.maxPerRun) : 50;
       const blacklist = Array.isArray(config.blacklist) ? config.blacklist : [];
@@ -621,7 +707,20 @@
         return null;
       };
 
-      await scrollListToTop(scroller);
+      /*
+       * 预扫描为了看全列表已经滚到了底部，发送前必须把**渲染窗口**拉回顶部。
+       * 早期这里只调 scrollListToTop（仅设 scrollTop = 0）：
+       * 在后台标签页里渲染窗口纹丝不动地停在列表末尾，
+       * 于是 pickNext 只看到最后一屏没火花的人，advanceList 立刻报「到底」，
+       * 15 个有火花的人全部沦为 unreached，一条也没发出去。
+       */
+      const startedAtTop = await rewindListToTop(scroller, listEl, selectors);
+      if (!startedAtTop) {
+        log('warn', 'rewind_failed', '没能把会话列表拉回顶部，可能会漏掉一部分人');
+      }
+      if (config && config.debugDom) {
+        log('info', 'dom_debug_rewind', '发送前渲染窗口起始序号：' + minRenderedIndex(listEl, selectors));
+      }
 
       let guard = 0;
       while (sent < maxPerRun && !aborted && guard < MAX_SWEEP_STEPS) {
@@ -640,6 +739,22 @@
             if (await advanceList(scroller, listEl, selectors) === 'advanced') { recovered = true; break; }
           }
           if (recovered) continue;
+
+          /*
+           * 真的推到底了。若预扫描看到的人还有没轮到的
+           * （列表因新消息重排、虚拟列表回收等原因错过），
+           * 回到顶部再清扫一轮 —— 这才是 MAX_SWEEPS 的用处。
+           */
+          const left = remainingExpected();
+          if (sweep < MAX_SWEEPS && left.length > 0) {
+            sweep += 1;
+            log('info', 'sweep_again', '列表已到底，还有 ' + left.length + ' 人没轮到，回到顶部再清扫第 ' + sweep + ' 轮');
+            if (!(await rewindListToTop(scroller, listEl, selectors))) {
+              log('warn', 'rewind_failed', '回不到列表顶部，停止清扫');
+              break;
+            }
+            continue;
+          }
           break; // 真的到底了
         }
 
@@ -684,7 +799,7 @@
       if (sent >= maxPerRun) log('warn', 'truncated', `已达单次上限 ${maxPerRun} 人，剩下的下次再续`);
 
       // 预扫描看到、但实际没轮到的人（正常情况下应该为空）
-      const missed = scannedSpark.filter((t) => t.key && t.key.avatar && !processed.has(t.key.avatar)).map((t) => t.nickname);
+      const missed = remainingExpected();
       if (missed.length > 0) log('warn', 'unreached', `这些人这次没轮到：${missed.join('、')}`);
 
       if (aborted) {
