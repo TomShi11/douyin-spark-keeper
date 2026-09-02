@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "抖音续火花助手",
   "short_name": "续火花",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "每天自动为抖音好友续火花。后台静默执行，不抢焦点，同一天不重复发送。",
   "minimum_chrome_version": "114",
   "permissions": [

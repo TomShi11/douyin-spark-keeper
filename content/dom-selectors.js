@@ -996,6 +996,21 @@
     return false;
   }
 
+  /**
+   * 把「刚刚 / N分钟前 / N小时前」换算成「距今多少分钟」，无法解析返回 null。
+   */
+  function relativeMinutes(t) {
+    if (/^刚刚$/.test(t)) return 0;
+    const m = /^(\d{1,3})\s*(分钟|小时)前$/.exec(t);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return m[2] === '小时' ? n * 60 : n;
+  }
+
+  function sameLocalDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
   function isTodayDivider(el, selectors, now) {
     const sel = (selectors && selectors.todayDivider) || DEFAULT_SELECTORS.todayDivider;
     const t = text(el);
@@ -1006,15 +1021,31 @@
     const pastRe = sel.pastPrefixPattern ? new RegExp(sel.pastPrefixPattern) : /^(昨天|前天)/;
     if (pastRe.test(t)) return false;
 
-    // 真实结构无「今天」分隔线，只有相对时间：刚刚 / N分钟前 / N小时前 都属于今天
-    if (sel.todayRelativePattern && new RegExp(sel.todayRelativePattern).test(t)) return true;
+    const d = now instanceof Date ? now : new Date();
+
+    /*
+     * 相对时间「刚刚 / N分钟前 / N小时前」必须换算后确认仍落在今天。
+     * 跨午夜是真实踩过的坑：凌晨 00:06 执行时，昨晚 21:06 发的消息显示成「3小时前」，
+     * 若直接判为今天，就会把「昨天已发」误认成「今天已发」而跳过，导致该续的火花没续。
+     */
+    if (sel.todayRelativePattern && new RegExp(sel.todayRelativePattern).test(t)) {
+      const mins = relativeMinutes(t);
+      if (mins === null) return true;
+      return sameLocalDay(new Date(d.getTime() - mins * 60000), d);
+    }
     /*
      * 纯时刻 09:33 / 13:10 也是今天。
      * 抖音超过几小时就不再显示「N小时前」，改显示时刻；跨天则一定带日期前缀。
      * 上面已排除过带前缀的情况，所以走到这里的纯时刻必然是今天。
      */
-    if (sel.todayClockPattern && new RegExp(sel.todayClockPattern).test(t)) return true;
-    const d = now instanceof Date ? now : new Date();
+    if (sel.todayClockPattern && new RegExp(sel.todayClockPattern).test(t)) {
+      const cm = /^(\d{1,2}):(\d{2})/.exec(t);
+      if (!cm) return true;
+      const stampMin = Number(cm[1]) * 60 + Number(cm[2]);
+      const nowMin = d.getHours() * 60 + d.getMinutes();
+      // 时刻晚于当前时刻 => 只可能是昨天的消息（刚过午夜时抖音仍可能不带「昨天」前缀）
+      return stampMin <= nowMin + 2;
+    }
     const m = d.getMonth() + 1;
     const day = d.getDate();
     const patterns = [
@@ -1341,6 +1372,8 @@
     lowestCommonAncestor,
     isOwnMessage,
     isTodayDivider,
+    relativeMinutes,
+    sameLocalDay,
     hasOwnMessageToday,
     findMessageInput,
     findSendButton,

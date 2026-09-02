@@ -6,9 +6,9 @@
 
 开机后在后台静默完成，不抢焦点、不弹窗、不重复打扰。
 
-[![版本](https://img.shields.io/badge/version-1.9.3-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.9.4-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285f4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![测试](https://img.shields.io/badge/tests-193%20passed-12a150)](#开发)
+[![测试](https://img.shields.io/badge/tests-207%20passed-12a150)](#开发)
 [![License](https://img.shields.io/badge/license-MIT-666)](LICENSE)
 
 [**⬇️ 下载安装**](https://huohua.11s.space) · [安装说明](#安装) · [工作原理](#工作原理) · [常见问题](#常见问题)
@@ -215,7 +215,7 @@ douyin-spark-keeper/
 ```bash
 cd work
 npm install jsdom --no-save
-node --test "tests/*.test.mjs"    # 193 项
+node --test "tests/*.test.mjs"    # 207 项
 node gen-icons.mjs                # 重新生成图标
 ```
 
