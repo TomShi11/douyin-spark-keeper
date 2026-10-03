@@ -31,8 +31,8 @@
     conversationList: 20000,
     chatPanel: 12000,
     sendVerify: 5000,
-    scrollSettle: 600,
-    pollInterval: 250,
+    scrollSettle: 300,
+    pollInterval: 150,
     verifyPoll: 120
   };
   const MAX_SCROLL_ROUNDS = 60;   // 预扫描滚动轮数上限
@@ -159,7 +159,7 @@
   }
 
   function scrollStep(scroller) {
-    return Math.max(120, Math.floor((scroller.clientHeight || 400) * 0.45));
+    return Math.max(120, Math.floor((scroller.clientHeight || 400) * 0.70));
   }
 
   async function scrollListToTop(scroller) {
@@ -226,8 +226,8 @@
     // 等渲染真的换了内容（虚拟列表是异步渲染的，后台标签页尤其慢）
     const changed = await U.waitFor(
       () => (renderedSignature(listEl, selectors) !== before ? true : null),
-      2500,
-      150
+      1500,
+      100
     );
     if (changed) return 'advanced';
     if (wasAtBottom && atListBottom(scroller)) return 'bottom';
@@ -357,9 +357,9 @@
         bottomHits = 0;
         continue;
       }
-      // 到底 / 推不动：再确认两次，等懒加载补齐
+      // 到底 / 推不动：再确认一次，等懒加载补齐
       bottomHits += 1;
-      if (bottomHits >= 3) {
+      if (bottomHits >= 2) {
         if (how === 'stuck') log('warn', 'scroll_stuck', `列表推不动了，已扫到 ${seen.size} 个会话`);
         break;
       }
@@ -483,8 +483,6 @@
       log('info', 'dom_debug_input', `写入后 innerHTML=${(inputEl.innerHTML || '').slice(0, 200)} 子节点=${inputEl.childNodes.length}`, nickname);
     }
 
-    await U.sleep(200);
-
     // 只触发一次发送动作：有按钮点按钮，否则回车
     const sendBtn = S.findSendButton(document, selectors, inputEl);
     if (sendBtn) U.humanClick(sendBtn);
@@ -540,10 +538,8 @@
         return now !== prevList || !prevList.isConnected ? true : null;
       },
       3000,
-      150
+      100
     );
-    await U.sleep(250);
-
     const captcha = S.detectCaptchaBlocker(document, selectors);
     if (captcha) return { status: 'captcha', detail: captcha.text };
 

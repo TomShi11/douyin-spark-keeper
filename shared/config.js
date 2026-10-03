@@ -73,10 +73,10 @@ export const TIMEOUTS = {
   conversationList: 20000,
   chatPanel: 12000,
   sendVerify: 5000,
-  scrollSettle: 600,
+  scrollSettle: 300,
   // 发送校验的轮询间隔，越小越快确认
   verifyPoll: 120,
-  pollInterval: 250
+  pollInterval: 150
 };
 
 // 会话列表滚动加载上限
