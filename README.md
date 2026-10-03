@@ -6,7 +6,7 @@
 
 开机后在后台静默完成，不抢焦点、不弹窗、不重复打扰。
 
-[![版本](https://img.shields.io/badge/version-1.9.6-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.9.7-fe2c55)](https://github.com/TomShi11/douyin-spark-keeper/releases/latest)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285f4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![测试](https://img.shields.io/badge/tests-221%20passed-12a150)](#开发)
 [![License](https://img.shields.io/badge/license-MIT-666)](LICENSE)
