@@ -25,11 +25,12 @@ function showToast(text, type = 'ok') {
   clearTimeout(toastTimer);
   msg.textContent = text;
   if (icon) icon.textContent = type === 'ok' ? '✓' : '⚠️';
-  toast.className = 'toast-popup toast-' + type;
+  toast.className = 'toast-popup toast-' + type + ' show';
   toast.hidden = false;
 
   toastTimer = setTimeout(() => {
     toast.hidden = true;
+    toast.classList.remove('show');
   }, 2600);
 }
 

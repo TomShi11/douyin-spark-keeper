@@ -117,7 +117,7 @@
         </div>
 
         <div class="card">
-          <p class="hint">默认自动识别带火花标记的会话。名单每行输入一个昵称，支持包含匹配（如输入「超凡」可匹配「谷超凡」）。</p>
+          <p class="hint">默认自动识别带火花标记的会话。名单每行输入一个昵称，支持包含匹配（如输入「小明」可匹配「张小明」）。</p>
           <div class="grid">
             <div class="list-column">
               <div class="list-col-header">
@@ -308,9 +308,9 @@
     </footer>
 
     <!-- 优雅 Toast 浮层 -->
-    <div id="toast" class="toast-popup" hidden>
+    <div id="toast" class="toast-popup" hidden aria-live="polite">
       <span id="toastIcon" class="toast-icon">✓</span>
-      <span id="toastMsg" class="toast-msg">已保存</span>
+      <span id="toastMsg" class="toast-msg"></span>
     </div>
 
     <script src="../content/dom-selectors.js"></script>

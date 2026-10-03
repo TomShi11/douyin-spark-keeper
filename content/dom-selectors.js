@@ -549,7 +549,7 @@
     if (!compiled) {
       compiled = DEFAULT_COMPILED.nickname.stripSuffix;
     }
-    // 反复剥离，直到不再变化（如「谷超凡 84 39分钟前」需剥两次）
+    // 反复剥离，直到不再变化（如「张三 84 39分钟前」需剥两次）
     for (let round = 0; round < 6; round += 1) {
       const before = t;
       for (const re of compiled) {

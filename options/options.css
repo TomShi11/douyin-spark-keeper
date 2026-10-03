@@ -72,6 +72,11 @@
   margin: 0;
   padding: 0;
 }
+/* 全局隐藏属性保障（防止 author 规则覆盖 [hidden]） */
+[hidden] {
+  display: none !important;
+}
+
 
 html {
   scroll-behavior: smooth;
@@ -965,6 +970,15 @@ button:active {
   z-index: 1000;
   pointer-events: none;
   animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-popup[hidden],
+.toast-popup:not(.show) {
+  display: none !important;
+}
+
+.dirty-indicator[hidden] {
+  display: none !important;
 }
 
 .toast-popup.toast-ok {
