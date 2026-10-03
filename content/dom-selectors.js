@@ -116,6 +116,7 @@
       css: [
         '[class*="MessageBoxlistContainer"]',
         '[class*="messageListContainer"]',
+        '[class*="messageMessageListlist"]',
         '[data-e2e*="message-list"]',
         '[class*="messageList"]',
         '[class*="chatList"]',
@@ -481,9 +482,12 @@
     return out;
   }
 
+  // 零宽字符与不可见空白字符
+  const INVISIBLE_RE = /[\u200B-\u200D\uFEFF\u00A0]/g;
+
   // 清洗昵称：剥掉粘连的火花天数、时间、状态等后缀
   function cleanNickname(raw, sel) {
-    let t = (raw || '').replace(/\s+/g, ' ').trim();
+    let t = (raw || '').replace(INVISIBLE_RE, '').replace(/\s+/g, ' ').trim();
     if (!t) return '';
     const patterns = (sel && sel.stripSuffixPatterns) || [];
     // 反复剥离，直到不再变化（如「谷超凡 84 39分钟前」需剥两次）
@@ -496,7 +500,6 @@
     }
     return t;
   }
-
   function extractNickname(itemEl, selectors) {
     if (!itemEl) return '';
     const sel = (selectors && selectors.nickname) || DEFAULT_SELECTORS.nickname;
@@ -846,13 +849,12 @@
     if (!scope) return null;
     const sel = (selectors && selectors.chatMessageList) || DEFAULT_SELECTORS.chatMessageList;
 
-    const all = messageNodesIn(scope, selectors);
-
     /*
-     * 语义选择器优先，但必须验证它真的装着大部分消息。
-     * 否则一个恰好匹配上的小节点会赢过真正的容器
-     * （这正是只看到 1 条消息那个故障的形态）。
+     * 语义选择器优先：候选顺序就是优先级，最具体的放最前。
+     * 节点自己 scope 内必须真正装着消息（避免命中空容器或侧边栏而错失真实消息区）。
+     * 同时保留 firstVisible 作为消息尚未渲染时的平稳过渡兜底。
      */
+    let firstVisible = null;
     for (const css of sel.css || []) {
       let nodes;
       try {
@@ -862,14 +864,14 @@
       }
       for (const node of nodes) {
         if (!isVisible(node)) continue;
-        if (all.length === 0) return node;
-        let owned = 0;
-        for (const m of all) if (node.contains(m)) owned += 1;
-        if (owned >= all.length) return node;
+        if (!firstVisible) firstVisible = node;
+        if (messageNodesIn(node, selectors).length > 0) return node;
       }
     }
+    if (firstVisible) return firstVisible;
 
-    // 结构兜底：所有消息气泡的最近公共祖先
+    // 兜底：全文档所有消息的最近公共祖先
+    const all = messageNodesIn(scope, selectors);
     const lca = lowestCommonAncestor(all);
     if (lca) return lca;
     return null;
@@ -1122,9 +1124,71 @@
       }
       return result;
     }
+    // 结构 A：独立分隔线（时间戳作为独立节点位于消息之间，而非消息气泡内部）
+    const ordered = [];
+    const isPastDivider = (node) => {
+      for (const css of divSel.css || []) {
+        try {
+          if (node.matches && node.matches(css)) return true;
+          if (node.querySelector && node.querySelector(css)) return true;
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      const t = text(node);
+      if (t && divSel.pastPrefixPattern && new RegExp(divSel.pastPrefixPattern).test(t)) return true;
+      return false;
+    };
+
+    const walk = (node) => {
+      for (const child of Array.from(node.children || [])) {
+        if (messageSet.has(child)) {
+          ordered.push({ type: 'message', el: child });
+          continue;
+        }
+        if (isTodayDivider(child, selectors, now)) {
+          ordered.push({ type: 'today_divider', el: child });
+          continue;
+        }
+        if (isPastDivider(child)) {
+          ordered.push({ type: 'past_divider', el: child });
+          continue;
+        }
+        walk(child);
+      }
+    };
+    walk(chatListEl);
+
+    const hasTodayDivider = ordered.some((n) => n.type === 'today_divider');
+    const hasPastDivider = ordered.some((n) => n.type === 'past_divider');
+
+    if (hasTodayDivider) {
+      result.dividerFound = true;
+      let afterToday = false;
+      for (const node of ordered) {
+        if (node.type === 'today_divider') {
+          afterToday = true;
+          continue;
+        }
+        if (afterToday && node.type === 'message' && isOwnMessage(node.el, selectors)) {
+          result.sentToday = true;
+          result.reason = 'divider_today';
+          return result;
+        }
+      }
+      result.sentToday = false;
+      result.reason = 'today_divider_no_own';
+      return result;
+    }
+
+    if (hasPastDivider) {
+      result.sentToday = false;
+      result.reason = 'has_stamp_not_today';
+      return result;
+    }
 
     /*
-     * 整个会话一条时间戳都没有（抖音只在间隔较大时才插时间戳，短会话很常见）。
+     * 整个会话真正一条时间戳都没有（抖音只在间隔较大时才插时间戳，短会话很常见）。
      * 这种情况下能看到的消息就是最近的对话，里面若有我发的，
      * 只能是今天发的 —— 判定为已发，避免重复打扰。
      * 宁可漏发也不重复：这是本项目一贯的取向。
@@ -1135,35 +1199,6 @@
       return result;
     }
 
-    // 结构 A：独立分隔线，其后的消息算今天
-    const ordered = [];
-    const walk = (node) => {
-      for (const child of Array.from(node.children || [])) {
-        if (messageSet.has(child)) {
-          ordered.push({ type: 'message', el: child });
-          continue;
-        }
-        if (isTodayDivider(child, selectors, now)) {
-          ordered.push({ type: 'divider', el: child });
-          continue;
-        }
-        walk(child);
-      }
-    };
-    walk(chatListEl);
-
-    let afterToday = false;
-    for (const node of ordered) {
-      if (node.type === 'divider') {
-        afterToday = true;
-        result.dividerFound = true;
-        continue;
-      }
-      if (afterToday && isOwnMessage(node.el, selectors)) {
-        result.sentToday = true;
-        return result;
-      }
-    }
     return result;
   }
 

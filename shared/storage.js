@@ -158,11 +158,17 @@ export async function getState() {
   return normalizeState(state);
 }
 
-export async function patchState(patch) {
-  const current = await getState();
-  const next = { ...current, ...patch };
-  await area().set({ state: next });
-  return next;
+let stateWriteQueue = Promise.resolve();
+
+export function patchState(patch) {
+  const task = stateWriteQueue.then(async () => {
+    const current = await getState();
+    const next = { ...current, ...patch };
+    await area().set({ state: next });
+    return next;
+  });
+  stateWriteQueue = task.catch(() => {});
+  return task;
 }
 
 /* ------------------------- 今日已发名单（防重复发送） ------------------------- */
@@ -240,19 +246,28 @@ export async function getLogs() {
   const { logs } = await area().get('logs');
   return Array.isArray(logs) ? logs : [];
 }
+let logWriteQueue = Promise.resolve();
 
-export async function addLog(level, event, detail, nickname) {
-  const logs = await getLogs();
-  const next = appendLogEntries(logs, makeLogEntry(level, event, detail, nickname));
-  await area().set({ logs: next });
-  return next;
+export function addLog(level, event, detail, nickname) {
+  const task = logWriteQueue.then(async () => {
+    const logs = await getLogs();
+    const next = appendLogEntries(logs, makeLogEntry(level, event, detail, nickname));
+    await area().set({ logs: next });
+    return next;
+  });
+  logWriteQueue = task.catch(() => {});
+  return task;
 }
 
-export async function addLogs(entries) {
-  const logs = await getLogs();
-  const next = appendLogEntries(logs, entries);
-  await area().set({ logs: next });
-  return next;
+export function addLogs(entries) {
+  const task = logWriteQueue.then(async () => {
+    const logs = await getLogs();
+    const next = appendLogEntries(logs, entries);
+    await area().set({ logs: next });
+    return next;
+  });
+  logWriteQueue = task.catch(() => {});
+  return task;
 }
 
 export async function clearLogs() {
