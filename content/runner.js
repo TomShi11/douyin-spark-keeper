@@ -31,8 +31,8 @@
     conversationList: 20000,
     chatPanel: 12000,
     sendVerify: 5000,
-    scrollSettle: 300,
-    pollInterval: 150,
+    scrollSettle: 500,
+    pollInterval: 200,
     verifyPoll: 120
   };
   const MAX_SCROLL_ROUNDS = 60;   // 预扫描滚动轮数上限
@@ -159,7 +159,7 @@
   }
 
   function scrollStep(scroller) {
-    return Math.max(120, Math.floor((scroller.clientHeight || 400) * 0.70));
+    return Math.max(120, Math.floor((scroller.clientHeight || 400) * 0.50));
   }
 
   async function scrollListToTop(scroller) {
@@ -226,8 +226,8 @@
     // 等渲染真的换了内容（虚拟列表是异步渲染的，后台标签页尤其慢）
     const changed = await U.waitFor(
       () => (renderedSignature(listEl, selectors) !== before ? true : null),
-      1500,
-      100
+      2500,
+      150
     );
     if (changed) return 'advanced';
     if (wasAtBottom && atListBottom(scroller)) return 'bottom';
@@ -359,7 +359,7 @@
       }
       // 到底 / 推不动：再确认一次，等懒加载补齐
       bottomHits += 1;
-      if (bottomHits >= 2) {
+      if (bottomHits >= 3) {
         if (how === 'stuck') log('warn', 'scroll_stuck', `列表推不动了，已扫到 ${seen.size} 个会话`);
         break;
       }
@@ -483,6 +483,9 @@
       log('info', 'dom_debug_input', `写入后 innerHTML=${(inputEl.innerHTML || '').slice(0, 200)} 子节点=${inputEl.childNodes.length}`, nickname);
     }
 
+    // 写入后必须稍作等待，让富文本编辑器（editor-kit / React）内部 AST 与 DOM 完成同步
+    await U.sleep(250);
+
     // 只触发一次发送动作：有按钮点按钮，否则回车
     const sendBtn = S.findSendButton(document, selectors, inputEl);
     if (sendBtn) U.humanClick(sendBtn);
@@ -526,31 +529,45 @@
    * 点开后必须确认「当前打开的确实是这个人」才动手 —— 抖音列表会因新消息重排。
    */
   async function openAndSend(itemEl, target, selectors, log, config) {
+    // 切换会话前释放当前焦点与选区，防止富文本编辑器焦点锁定或拦截点击
+    try {
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+      const s = globalThis.getSelection && globalThis.getSelection();
+      if (s && typeof s.removeAllRanges === 'function') {
+        s.removeAllRanges();
+      }
+    } catch (err) {}
+
     const prevList = currentChatList(selectors);
     U.humanClick(itemEl);
 
-    // 等消息区切换完成（旧节点被替换或内容变化），最多 3 秒，就绪即继续
-    await U.waitFor(
-      () => {
-        const now = currentChatList(selectors);
-        if (!now) return null;
-        if (!prevList) return true;
-        return now !== prevList || !prevList.isConnected ? true : null;
-      },
-      3000,
-      100
-    );
-    const captcha = S.detectCaptchaBlocker(document, selectors);
-    if (captcha) return { status: 'captcha', detail: captcha.text };
-
-    const verify = await U.waitFor(
+    // 等待会话切换生效并确认目标身份
+    let verify = await U.waitFor(
       () => {
         const v = S.verifyActiveConversation(document, selectors, target.key, target.nickname);
         return v.ok ? v : null;
       },
-      2500,
-      150
-    ) || S.verifyActiveConversation(document, selectors, target.key, target.nickname);
+      1200,
+      100
+    );
+
+    // 若 1.2 秒内未完成切换（可能被先前弹窗/失焦拦截），再补点一次
+    if (!verify || !verify.ok) {
+      U.humanClick(itemEl);
+      verify = await U.waitFor(
+        () => {
+          const v = S.verifyActiveConversation(document, selectors, target.key, target.nickname);
+          return v.ok ? v : null;
+        },
+        2000,
+        100
+      ) || S.verifyActiveConversation(document, selectors, target.key, target.nickname);
+    }
+
+    const captcha = S.detectCaptchaBlocker(document, selectors);
+    if (captcha) return { status: 'captcha', detail: captcha.text };
 
     if (!verify.ok) {
       log(
@@ -561,6 +578,19 @@
       );
       return { status: 'skipped', detail: '打开的不是目标本人' };
     }
+
+    // 确认目标本人后，等待消息区就绪（DOM 替换或消息出现）
+    await U.waitFor(
+      () => {
+        const now = currentChatList(selectors);
+        if (!now) return null;
+        if (!prevList) return true;
+        return now !== prevList || !prevList.isConnected || S.findMessages(now, selectors).length > 0 ? true : null;
+      },
+      2500,
+      100
+    );
+    await U.sleep(250);
 
     return await sendSparkTo(target, selectors, log, config);
   }
@@ -773,9 +803,12 @@
           safePost(port, { type: MSG.PROGRESS, sentEntry: { avatar: pick.target.key.avatar, nickname: pick.target.nickname } });
         } else if (result.status === 'skipped') {
           skipped += 1;
-          consecutiveFailures = 0;
           if (result.detail === 'already_sent_today') {
+            consecutiveFailures = 0;
             safePost(port, { type: MSG.PROGRESS, sentEntry: { avatar: pick.target.key.avatar, nickname: pick.target.nickname } });
+          } else {
+            // 异常跳过（如「打开的不是目标本人」），计入连续故障，防止列表重排或导航卡死时无限制空转
+            consecutiveFailures += 1;
           }
         } else {
           failed += 1;

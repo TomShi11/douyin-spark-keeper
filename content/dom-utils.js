@@ -224,6 +224,11 @@
       if (setter && setter.set) setter.set.call(el, '');
       else el.value = '';
       el.dispatchEvent(new win.Event('input', { bubbles: true }));
+      try {
+        if (typeof el.blur === 'function') el.blur();
+      } catch (err) {
+        /* ignore */
+      }
       return;
     }
 
@@ -270,6 +275,19 @@
       if (onlyBlanks) {
         while (el.firstChild) el.removeChild(el.firstChild);
       }
+    }
+
+    // 清空完成后主动释放焦点与选区，防止后续切换会话被输入框锁死
+    try {
+      if (typeof el.blur === 'function') el.blur();
+    } catch (err) {
+      /* ignore */
+    }
+    try {
+      const s = win.getSelection && win.getSelection();
+      if (s && typeof s.removeAllRanges === 'function') s.removeAllRanges();
+    } catch (err) {
+      /* ignore */
     }
   }
 
@@ -449,13 +467,24 @@
   // 回车发送兜底
   function pressEnter(el) {
     if (!el) return false;
-    const win = el.ownerDocument.defaultView || globalThis;
-    const init = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+    const doc = el.ownerDocument;
+    const win = doc.defaultView || globalThis;
+    const init = {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      charCode: 13,
+      bubbles: true,
+      cancelable: true,
+      composed: true
+    };
     try {
       el.focus();
     } catch (err) {
       /* ignore */
     }
+    placeCaretAtEnd(el);
     el.dispatchEvent(new win.KeyboardEvent('keydown', init));
     el.dispatchEvent(new win.KeyboardEvent('keypress', init));
     el.dispatchEvent(new win.KeyboardEvent('keyup', init));

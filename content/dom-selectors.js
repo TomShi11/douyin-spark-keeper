@@ -1240,12 +1240,16 @@
         if (matchesAnyKeyword(label, keywords)) return node;
       }
     }
-    // 结构兜底：输入框附近的最后一个按钮
+    // 结构兜底：输入框附近的按钮（必须严格匹配发送关键字，严禁误将表情/图片/工具栏按钮当成发送按钮）
     if (inputEl) {
       let container = inputEl.parentElement;
       for (let depth = 0; depth < 4 && container; depth += 1) {
         const buttons = Array.from(container.querySelectorAll('button, [role="button"]')).filter((b) => isVisible(b) && !b.disabled);
-        if (buttons.length > 0) return buttons[buttons.length - 1];
+        for (let i = buttons.length - 1; i >= 0; i -= 1) {
+          const b = buttons[i];
+          const label = text(b) + ' ' + ((b.getAttribute && (b.getAttribute('aria-label') || b.getAttribute('title') || b.getAttribute('data-e2e'))) || '');
+          if (matchesAnyKeyword(label, keywords)) return b;
+        }
         container = container.parentElement;
       }
     }
