@@ -2,108 +2,316 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <title>抖音续火花助手 · 设置</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>抖音续火花助手 · 设置控制台</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
-    <h1>🔥 抖音续火花助手 · 设置</h1>
-
-    <section class="card">
-      <label class="switch">
-        <input type="checkbox" id="autoRunEnabled" />
-        <span>每天浏览器启动后自动执行（启动后随机延迟 1–5 分钟，后台标签执行，完成即关闭）</span>
-      </label>
-    </section>
-
-    <section class="card">
-      <h2>聊天页地址</h2>
-      <p class="hint">
-        抖音有多个聊天路由。默认使用独立聊天窗口页 <code>/chat?isPopup=1</code>；若打不开会话列表，扩展会自动依次尝试
-        <code>/chat</code> 与 <code>/im</code>。你也可以在浏览器地址栏复制自己实际能看到私信列表的地址填到这里。
-      </p>
-      <label for="chatUrl">聊天页地址（必须是 https://www.douyin.com 下的地址）</label>
-      <input type="text" id="chatUrl" class="wide" placeholder="https://www.douyin.com/chat?isPopup=1" />
-    </section>
-
-    <section class="card">
-      <h2>发送内容</h2>
-      <p class="hint">
-        默认是火花表情 <strong>🔥</strong>。<br />
-        也可以改成其他 emoji 或任意短语（从系统表情面板复制粘贴即可）。<br />
-        <strong>不要填 <code>[火花]</code> 这种方括号写法</strong>——抖音不会把它当表情，会原样显示成文字。
-      </p>
-      <label for="sparkText">每次发送的内容</label>
-      <input type="text" id="sparkText" class="wide" placeholder="🔥" maxlength="40" />
-    </section>
-
-    <section class="card">
-      <h2>今天发过谁</h2>
-      <p class="hint">
-        <strong>这里只是记录，不是判定依据。</strong>
-        是否已经发过，每次都是点开会话、读页面上的聊天记录来判断的 ——
-        今天只要已经有你发出的消息（包括你自己手动发的）就会跳过。
-        所以清空这份记录<strong>不会</strong>让它重发。
-      </p>
-      <button id="showLedger" class="link" type="button">查看今天发过谁</button>
-      <pre id="ledger" hidden></pre>
-      <p><button id="clearLedger">清空这份记录（仅清统计，不影响判定）</button></p>
-    </section>
-
-    <section class="card">
-      <h2>名单覆盖</h2>
-
-      <p class="hint">默认自动识别带火花标记的会话。名单每行一个昵称，支持部分匹配。黑名单优先于白名单。</p>
-      <div class="grid">
-        <div>
-          <label for="whitelist">白名单（即使没识别到火花也发送）</label>
-          <textarea id="whitelist" rows="8" placeholder="张三&#10;小李"></textarea>
+    <!-- 顶部品牌导航栏 -->
+    <header class="hero-header">
+      <div class="header-container">
+        <div class="hero-brand">
+          <div class="hero-badge">🔥</div>
+          <div class="hero-text">
+            <div class="hero-title-row">
+              <h1 class="hero-title">抖音续火花助手</h1>
+              <span class="version-capsule">v2.0 控制中心</span>
+            </div>
+            <p class="hero-desc">自动化火花守护 · 智能会话扫描 · 安全节奏防控</p>
+          </div>
         </div>
-        <div>
-          <label for="blacklist">黑名单（永不发送）</label>
-          <textarea id="blacklist" rows="8" placeholder="工作群&#10;客服"></textarea>
+        <div class="header-links">
+          <a href="https://github.com/geekther/douyin-spark-keeper" target="_blank" rel="noreferrer" class="header-link" title="查看 GitHub 开源仓库">
+            <span class="link-icon">⭐</span>
+            <span>GitHub</span>
+          </a>
         </div>
       </div>
-    </section>
+    </header>
 
-    <section class="card">
-      <h2>发送节奏</h2>
-      <div class="fields">
-        <label>单次最多处理人数 <input type="number" id="maxPerRun" min="1" max="100" /></label>
-        <label>最小间隔（毫秒） <input type="number" id="minDelayMs" min="500" max="120000" step="500" /></label>
-        <label>最大间隔（毫秒） <input type="number" id="maxDelayMs" min="500" max="120000" step="500" /></label>
+    <!-- 吸顶快速锚点导航条 -->
+    <nav class="sticky-nav">
+      <div class="nav-container">
+        <a href="#sec-general" class="nav-item active">常规设置</a>
+        <a href="#sec-targets" class="nav-item">目标名单</a>
+        <a href="#sec-pace" class="nav-item">发送节奏</a>
+        <a href="#sec-diagnostics" class="nav-item">记录诊断</a>
+        <a href="#sec-expert" class="nav-item">专家模式</a>
       </div>
-      <p class="hint">建议保持默认（50 人、2000–5000 毫秒）。调得太快有触发抖音风控的风险。</p>
-    </section>
+    </nav>
 
-    <section class="card">
-      <h2>高级：选择器覆盖（JSON）</h2>
-      <p class="hint">
-        抖音改版导致识别失败时，可在此覆盖 <code>content/dom-selectors.js</code> 中的默认配置（深合并，数组整体替换）。留空表示使用默认值。
-      </p>
-      <textarea id="selectorOverrides" rows="10" spellcheck="false" placeholder='{ "conversationList": { "css": [".my-new-list"] } }'></textarea>
-      <p class="hint">当前默认配置可点击 <button id="showDefaults" class="link" type="button">查看默认 JSON</button> 复制后修改。</p>
-      <pre id="defaults" hidden></pre>
-    </section>
+    <!-- 主体设置表单区域 -->
+    <main class="page-container">
+      <!-- 1. 常规设置 -->
+      <div id="sec-general" class="section-anchor"></div>
+      <section class="settings-group">
+        <div class="group-title-row">
+          <h2 class="group-title">常规设置</h2>
+          <span class="group-desc">核心开关与发送基础配置</span>
+        </div>
 
-    <section class="card">
-      <h2>诊断信息</h2>
-      <p class="hint">
-        上次识别失败时自动采集的页面结构快照（各选择器命中数、子项最多的容器）。据此判断该用什么选择器覆盖。
-      </p>
-      <label class="switch" style="margin-bottom:10px">
-        <input type="checkbox" id="debugDom" />
-        <span>开启 DOM 排查日志（把输入框结构、消息区时间戳写进日志，排查完请关掉）</span>
-      </label>
-      <button id="showDiagnostics" class="link" type="button">显示上次诊断信息</button>
-      <pre id="diagnostics" hidden></pre>
-    </section>
+        <!-- 自动执行开关卡片 -->
+        <div class="card toggle-card">
+          <div class="toggle-content">
+            <div class="card-icon">⚡</div>
+            <div class="card-info">
+              <div class="card-title">启用每日自动执行</div>
+              <div class="card-subtitle">每天定时唤醒后台标签页自动扫描并向带火花好友发送问候，免去遗忘烦恼</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="autoRunEnabled" />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
 
-    <section class="actions">
-      <button id="save" class="primary">保存设置</button>
-      <button id="reset">恢复默认</button>
-      <button id="clearLogs">清空日志</button>
-      <span id="status" class="status"></span>
-    </section>
+        <!-- 聊天页地址卡片 -->
+        <div class="card">
+          <div class="field-header">
+            <div class="field-info">
+              <div class="field-title">聊天页地址</div>
+              <p class="hint">
+                扩展自动打开私信的入口。首选弹窗极简版（加载更快、干扰更少）。必须属于 <code>https://www.douyin.com</code> 域名。
+              </p>
+            </div>
+          </div>
+          <div class="input-wrap">
+            <input type="text" id="chatUrl" class="wide input-control" placeholder="https://www.douyin.com/chat?isPopup=1" />
+          </div>
+          <div class="preset-row">
+            <span class="preset-label">快捷预设：</span>
+            <button type="button" class="preset-tag" data-url="https://www.douyin.com/chat?isPopup=1">/chat?isPopup=1 (推荐)</button>
+            <button type="button" class="preset-tag" data-url="https://www.douyin.com/chat">/chat (标准)</button>
+            <button type="button" class="preset-tag" data-url="https://www.douyin.com/im">/im (经典)</button>
+          </div>
+        </div>
+
+        <!-- 发送内容卡片 -->
+        <div class="card">
+          <div class="field-header">
+            <div class="field-info">
+              <div class="field-title">每次发送内容</div>
+              <p class="hint">
+                默认发送火焰 Emoji <code>🔥</code>。可改为自定义文字（如「在吗」、「早」等），最长 40 字。
+              </p>
+            </div>
+          </div>
+          <div class="input-wrap spark-input-wrap">
+            <input type="text" id="sparkText" class="wide input-control spark-input" placeholder="🔥" maxlength="40" />
+            <div class="quick-emojis">
+              <button type="button" class="quick-emoji-btn" data-emoji="🔥">🔥</button>
+              <button type="button" class="quick-emoji-btn" data-emoji="✨">✨</button>
+              <button type="button" class="quick-emoji-btn" data-emoji="👋">👋</button>
+              <button type="button" class="quick-emoji-btn" data-emoji="☀️">☀️</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 目标名单 -->
+      <div id="sec-targets" class="section-anchor"></div>
+      <section class="settings-group">
+        <div class="group-title-row">
+          <h2 class="group-title">目标名单</h2>
+          <span class="group-desc">白名单与黑名单规则（黑名单优先于白名单与火花识别）</span>
+        </div>
+
+        <div class="card">
+          <p class="hint">默认自动识别带火花标记的会话。名单每行输入一个昵称，支持包含匹配（如输入「超凡」可匹配「谷超凡」）。</p>
+          <div class="grid">
+            <div class="list-column">
+              <div class="list-col-header">
+                <label for="whitelist" class="list-label">
+                  <span class="col-dot ok-dot"></span>
+                  <span>白名单（即使没识别到火花也发送）</span>
+                </label>
+                <span id="whitelistCount" class="counter-badge">0 人</span>
+              </div>
+              <textarea id="whitelist" class="textarea-control" rows="8" placeholder="张三&#10;李四"></textarea>
+            </div>
+            <div class="list-column">
+              <div class="list-col-header">
+                <label for="blacklist" class="list-label">
+                  <span class="col-dot err-dot"></span>
+                  <span>黑名单（永不发送）</span>
+                </label>
+                <span id="blacklistCount" class="counter-badge">0 人</span>
+              </div>
+              <textarea id="blacklist" class="textarea-control" rows="8" placeholder="工作群&#10;官方客服"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 发送节奏 -->
+      <div id="sec-pace" class="section-anchor"></div>
+      <section class="settings-group">
+        <div class="group-title-row">
+          <h2 class="group-title">发送节奏</h2>
+          <span class="group-desc">单次并发上限与拟人化随机延迟</span>
+        </div>
+
+        <div class="card">
+          <div class="fields-grid">
+            <div class="field-box">
+              <label for="maxPerRun" class="box-label">单次最多处理人数</label>
+              <div class="input-unit-wrap">
+                <input type="number" id="maxPerRun" class="input-control box-input" min="1" max="100" />
+                <span class="unit-text">人</span>
+              </div>
+              <span class="box-hint">上限 100，默认 50</span>
+            </div>
+            <div class="field-box">
+              <label for="minDelayMs" class="box-label">最小发送间隔</label>
+              <div class="input-unit-wrap">
+                <input type="number" id="minDelayMs" class="input-control box-input" min="500" max="120000" step="500" />
+                <span class="unit-text">ms</span>
+              </div>
+              <span class="box-hint">建议 ≥ 2000 毫秒</span>
+            </div>
+            <div class="field-box">
+              <label for="maxDelayMs" class="box-label">最大发送间隔</label>
+              <div class="input-unit-wrap">
+                <input type="number" id="maxDelayMs" class="input-control box-input" min="500" max="120000" step="500" />
+                <span class="unit-text">ms</span>
+              </div>
+              <span class="box-hint">建议 ≤ 5000 毫秒</span>
+            </div>
+          </div>
+          <p class="hint pace-warning">
+            💡 发送间隔在 [最小间隔, 最大间隔] 之间随机选取，模拟真人操作。建议保持默认区间 (2000ms – 5000ms)，调得过快容易触发抖音安全验证。
+          </p>
+        </div>
+      </section>
+
+      <!-- 4. 记录诊断 -->
+      <div id="sec-diagnostics" class="section-anchor"></div>
+      <section class="settings-group">
+        <div class="group-title-row">
+          <h2 class="group-title">记录诊断</h2>
+          <span class="group-desc">今日执行清单与底层 DOM 结构分析</span>
+        </div>
+
+        <!-- 今天发过谁卡片 -->
+        <div class="card">
+          <div class="card-section-head">
+            <div>
+              <div class="field-title">今天发过谁</div>
+              <p class="hint">
+                <strong>说明：本项仅作为前端统计与徽标依据，绝非跳过逻辑的判定凭据。</strong>
+                扩展每次都会点开会话，直接根据页面中今天是否已有自己发出的真实消息决定是否发送。清空此处记录<strong>绝不会</strong>引起重复发送。
+              </p>
+            </div>
+          </div>
+          <div class="tool-actions-row">
+            <button id="showLedger" class="secondary-btn" type="button">
+              <span class="btn-icon">📋</span>
+              <span class="btn-text">展开今日发送清单</span>
+            </button>
+            <button id="clearLedger" class="danger-outline-btn" type="button">
+              <span class="btn-icon">🗑️</span>
+              <span class="btn-text">清空统计记录</span>
+            </button>
+          </div>
+          <div id="ledgerCardView" class="ledger-card-view" hidden>
+            <div id="ledgerList" class="ledger-badge-list"></div>
+          </div>
+          <pre id="ledger" class="code-editor-block" hidden></pre>
+        </div>
+
+        <!-- 诊断快照卡片 -->
+        <div class="card">
+          <div class="field-header">
+            <div class="field-info">
+              <div class="field-title">页面结构诊断信息</div>
+              <p class="hint">
+                当页面发生改版或识别受阻时，扩展会自动采集并留存最近一次执行的 DOM 选择器命中详情与容器候选快照。
+              </p>
+            </div>
+          </div>
+          <div class="card toggle-card inner-toggle-card">
+            <div class="toggle-content">
+              <div class="card-info">
+                <div class="card-title">开启 DOM 排查调试日志</div>
+                <div class="card-subtitle">将输入框结构、消息气泡时间戳等详细 DOM 特征记入日志（排查完成后建议关闭）</div>
+              </div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="debugDom" />
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="tool-actions-row">
+            <button id="showDiagnostics" class="secondary-btn" type="button">
+              <span class="btn-icon">🔍</span>
+              <span class="btn-text">查看上次诊断快照</span>
+            </button>
+            <button id="copyDiagnostics" class="secondary-btn" type="button" hidden>
+              <span class="btn-icon">📋</span>
+              <span class="btn-text">复制诊断 JSON</span>
+            </button>
+          </div>
+          <pre id="diagnostics" class="code-editor-block" hidden></pre>
+        </div>
+      </section>
+
+      <!-- 5. 专家模式 -->
+      <div id="sec-expert" class="section-anchor"></div>
+      <section class="settings-group">
+        <div class="group-title-row">
+          <h2 class="group-title">专家模式</h2>
+          <span class="group-desc">在线修改 CSS 选择器与正则启发式规则（无需重新打包）</span>
+        </div>
+
+        <div class="card">
+          <div class="field-title">选择器覆盖 (JSON)</div>
+          <p class="hint">
+            当抖音改版时，可在此覆写 <code>content/dom-selectors.js</code> 中的内置定义（深合并，数组整体替换，保存时自动完成单例预编译）。留空表示完全沿用内置选择器。
+          </p>
+          <div class="code-editor-wrap">
+            <textarea id="selectorOverrides" class="code-textarea" rows="8" spellcheck="false" placeholder='{ "conversationList": { "css": [".my-new-list"] } }'></textarea>
+          </div>
+          <div class="tool-actions-row">
+            <button id="showDefaults" class="secondary-btn" type="button">
+              <span class="btn-icon">📖</span>
+              <span class="btn-text">查看内置默认选择器 JSON</span>
+            </button>
+            <button id="copyDefaults" class="secondary-btn" type="button" hidden>
+              <span class="btn-icon">📋</span>
+              <span class="btn-text">复制默认 JSON</span>
+            </button>
+          </div>
+          <pre id="defaults" class="code-editor-block" hidden></pre>
+        </div>
+      </section>
+    </main>
+
+    <!-- 底部浮动毛玻璃操作条 -->
+    <footer class="floating-bar">
+      <div class="floating-container">
+        <div class="floating-info">
+          <span id="dirtyIndicator" class="dirty-indicator" title="当前表单有未保存的改动" hidden>
+            <span class="dirty-dot"></span>
+            <span class="dirty-text">有未保存改动</span>
+          </span>
+          <span id="status" class="status-msg"></span>
+        </div>
+        <div class="floating-actions">
+          <button id="clearLogs" class="secondary-btn action-btn">清空日志</button>
+          <button id="reset" class="secondary-btn action-btn">恢复默认</button>
+          <button id="save" class="primary-btn action-btn save-btn">
+            <span class="btn-icon">💾</span>
+            <span class="btn-text">保存设置</span>
+          </button>
+        </div>
+      </div>
+    </footer>
+
+    <!-- 优雅 Toast 浮层 -->
+    <div id="toast" class="toast-popup" hidden>
+      <span id="toastIcon" class="toast-icon">✓</span>
+      <span id="toastMsg" class="toast-msg">已保存</span>
+    </div>
 
     <script src="../content/dom-selectors.js"></script>
     <script src="options.js" type="module"></script>

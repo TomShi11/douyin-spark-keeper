@@ -115,7 +115,7 @@
 
   /**
    * 压平空段落：若编辑器内容里只有一处非空文本，
-   * 但被包在多个块级元素中且前面有空块，则重建为「单个块 / 纯文本」。
+   * 但被包在多个块级元素中且前面有空块，则剔除无意义空块。
    */
   function collapseEmptyBlocks(el, expected) {
     if (!el || el.nodeType !== 1) return;
@@ -125,13 +125,11 @@
     const blocks = Array.from(el.children).filter((n) => n.nodeType === 1);
     if (blocks.length === 0) return;
 
-    // 存在空块（无文本、无媒体）就说明有多余空行
     const hasEmptyBlock = blocks.some(
       (b) => clean(b.textContent) === '' && !b.querySelector('img, canvas, svg, video')
     );
     if (!hasEmptyBlock) return;
 
-    // 保留第一个含文本的块，其余空块删掉
     const keep = blocks.find((b) => clean(b.textContent) !== '');
     for (const b of blocks) {
       if (b !== keep && clean(b.textContent) === '' && !b.querySelector('img, canvas, svg, video')) {
@@ -311,22 +309,8 @@
       return false;
     }
   }
-
-  function selectAllContents(el) {
-    const doc = el.ownerDocument;
-    const win = doc.defaultView || globalThis;
-    try {
-      const s = win.getSelection && win.getSelection();
-      if (!s || !doc.createRange) return false;
-      const range = doc.createRange();
-      range.selectNodeContents(el);
-      s.removeAllRanges();
-      s.addRange(range);
-      return true;
-    } catch (err) {
-      return false;
-    }
-  }
+  // 全选等价实现统一别名导出
+  const selectAllContents = selectAllIn;
 
   /**
    * 归一化编辑器内容，确保「只有一行、且这一行就是要发的内容」。
@@ -491,12 +475,6 @@
     return true;
   }
 
-  function scrollToBottom(el) {
-    if (!el) return 0;
-    el.scrollTop = el.scrollHeight;
-    return el.scrollTop;
-  }
-
   const api = {
     sleep,
     randomInt,
@@ -515,7 +493,6 @@
     normalizeEditorContent,
     stripLeadingBlanks,
     collapseEmptyBlocks,
-    scrollToBottom
   };
 
   if (typeof globalThis !== 'undefined') globalThis.DSK_UTILS = api;

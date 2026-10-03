@@ -206,7 +206,7 @@
   // ------------------------------ 工具函数 ------------------------------
 
   function isPlainObject(v) {
-    return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+    return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]';
   }
 
   function deepClone(value) {
@@ -235,9 +235,61 @@
     return out;
   }
 
+  function compileSelectors(selectors) {
+    if (!selectors) return null;
+    const nick = selectors.nickname || DEFAULT_SELECTORS.nickname;
+    const spark = selectors.spark || DEFAULT_SELECTORS.spark;
+    const today = selectors.todayDivider || DEFAULT_SELECTORS.todayDivider;
+
+    return {
+      nickname: {
+        stripSuffix: (nick.stripSuffixPatterns || []).map((p) => (p instanceof RegExp ? p : new RegExp(p))),
+        exclude: (nick.excludePatterns || []).map((p) => (p instanceof RegExp ? p : new RegExp(p)))
+      },
+      spark: {
+        day: spark.dayPattern instanceof RegExp ? spark.dayPattern : new RegExp(spark.dayPattern || '^(\\d{1,4})\\s*天?$'),
+        rekindle: spark.rekindlePattern instanceof RegExp ? spark.rekindlePattern : new RegExp(spark.rekindlePattern || '重燃中\\s*(\\d+)\\s*/\\s*(\\d+)'),
+        number: spark.numberPattern instanceof RegExp ? spark.numberPattern : new RegExp(spark.numberPattern || '^(\\d{1,4})$')
+      },
+      todayDivider: {
+        pastPrefix: today.pastPrefixPattern instanceof RegExp ? today.pastPrefixPattern : (today.pastPrefixPattern ? new RegExp(today.pastPrefixPattern) : /^(昨天|前天)/),
+        todayRelative: today.todayRelativePattern instanceof RegExp ? today.todayRelativePattern : (today.todayRelativePattern ? new RegExp(today.todayRelativePattern) : /^(刚刚|\\d{1,2}\\s*(分钟|小时)前)$/),
+        todayClock: today.todayClockPattern instanceof RegExp ? today.todayClockPattern : (today.todayClockPattern ? new RegExp(today.todayClockPattern) : /^([01]?\\d|2[0-3]):[0-5]\\d(:[0-5]\\d)?$/)
+      }
+    };
+  }
+
+  function attachCompiled(sel, compiled) {
+    if (!sel || !compiled) return sel;
+    sel._compiled = compiled;
+    if (sel.nickname) {
+      sel.nickname._compiledStripSuffix = compiled.nickname.stripSuffix;
+      sel.nickname._compiledExclude = compiled.nickname.exclude;
+    }
+    if (sel.spark) {
+      sel.spark._compiledDay = compiled.spark.day;
+      sel.spark._compiledRekindle = compiled.spark.rekindle;
+      sel.spark._compiledNumber = compiled.spark.number;
+    }
+    if (sel.todayDivider) {
+      sel.todayDivider._compiledPastPrefix = compiled.todayDivider.pastPrefix;
+      sel.todayDivider._compiledTodayRelative = compiled.todayDivider.todayRelative;
+      sel.todayDivider._compiledTodayClock = compiled.todayDivider.todayClock;
+    }
+    return sel;
+  }
+
+  const DEFAULT_COMPILED = compileSelectors(DEFAULT_SELECTORS);
+  attachCompiled(DEFAULT_SELECTORS, DEFAULT_COMPILED);
+
   function getSelectors(overrides) {
-    if (!isPlainObject(overrides)) return deepMerge(DEFAULT_SELECTORS, {});
-    return deepMerge(DEFAULT_SELECTORS, overrides);
+    if (!isPlainObject(overrides) || Object.keys(overrides).length === 0) {
+      const copy = deepMerge(DEFAULT_SELECTORS, {});
+      return attachCompiled(copy, DEFAULT_COMPILED);
+    }
+    const merged = deepMerge(DEFAULT_SELECTORS, overrides);
+    const compiled = compileSelectors(merged);
+    return attachCompiled(merged, compiled);
   }
 
   function text(el) {
@@ -489,12 +541,19 @@
   function cleanNickname(raw, sel) {
     let t = (raw || '').replace(INVISIBLE_RE, '').replace(/\s+/g, ' ').trim();
     if (!t) return '';
-    const patterns = (sel && sel.stripSuffixPatterns) || [];
+    let compiled = (sel && sel._compiledStripSuffix) ||
+      (sel && sel._compiled && sel._compiled.nickname && sel._compiled.nickname.stripSuffix);
+    if (!compiled && sel && Array.isArray(sel.stripSuffixPatterns)) {
+      compiled = sel.stripSuffixPatterns.map((p) => (p instanceof RegExp ? p : new RegExp(p)));
+    }
+    if (!compiled) {
+      compiled = DEFAULT_COMPILED.nickname.stripSuffix;
+    }
     // 反复剥离，直到不再变化（如「谷超凡 84 39分钟前」需剥两次）
     for (let round = 0; round < 6; round += 1) {
       const before = t;
-      for (const p of patterns) {
-        t = t.replace(new RegExp(p), '').trim();
+      for (const re of compiled) {
+        t = t.replace(re, '').trim();
       }
       if (t === before) break;
     }
@@ -503,7 +562,11 @@
   function extractNickname(itemEl, selectors) {
     if (!itemEl) return '';
     const sel = (selectors && selectors.nickname) || DEFAULT_SELECTORS.nickname;
-    const excludes = (sel.excludePatterns || []).map((p) => new RegExp(p));
+    const excludes = (sel && sel._compiledExclude) ||
+      (selectors && selectors._compiled && selectors._compiled.nickname && selectors._compiled.nickname.exclude) ||
+      (Array.isArray(sel && sel.excludePatterns)
+        ? sel.excludePatterns.map((p) => (p instanceof RegExp ? p : new RegExp(p)))
+        : DEFAULT_COMPILED.nickname.exclude);
     const acceptable = (value) => {
       const t = cleanNickname(value, sel);
       if (!t) return '';
@@ -621,8 +684,6 @@
     if (!list) return null;
     for (const el of findConversationItems(list, selectors)) {
       if (hasClassToken(el, sel.classKeywords || [])) return el;
-      const inner = el.querySelector && el.querySelector('*');
-      void inner;
     }
     return null;
   }
@@ -682,8 +743,12 @@
     const result = { hasSpark: false, reason: null, days: null, rekindle: null };
     if (!itemEl || itemEl.nodeType !== 1) return result;
 
-    const dayRe = new RegExp(sel.dayPattern || '^(\\d{1,4})\\s*天?$');
-    const rekindleRe = new RegExp(sel.rekindlePattern || '重燃中\\s*(\\d+)\\s*/\\s*(\\d+)');
+    const dayRe = (sel && sel._compiledDay) ||
+      (selectors && selectors._compiled && selectors._compiled.spark && selectors._compiled.spark.day) ||
+      DEFAULT_COMPILED.spark.day;
+    const rekindleRe = (sel && sel._compiledRekindle) ||
+      (selectors && selectors._compiled && selectors._compiled.spark && selectors._compiled.spark.rekindle) ||
+      DEFAULT_COMPILED.spark.rekindle;
 
     // 从火花容器里解析天数 / 重燃进度
     const readStreak = (container) => {
@@ -1001,9 +1066,13 @@
   /**
    * 把「刚刚 / N分钟前 / N小时前」换算成「距今多少分钟」，无法解析返回 null。
    */
+  const CLOCK_HM_RE = /^(\d{1,2}):(\d{2})/;
+  const GANGGANG_RE = /^刚刚$/;
+  const REL_MIN_RE = /^(\d{1,3})\s*(分钟|小时)前$/;
+
   function relativeMinutes(t) {
-    if (/^刚刚$/.test(t)) return 0;
-    const m = /^(\d{1,3})\s*(分钟|小时)前$/.exec(t);
+    if (GANGGANG_RE.test(t)) return 0;
+    const m = REL_MIN_RE.exec(t);
     if (!m) return null;
     const n = Number(m[1]);
     return m[2] === '小时' ? n * 60 : n;
@@ -1020,7 +1089,9 @@
     if (matchesAnyKeyword(t, sel.keywords || [])) return true;
 
     // 先排除明确属于过去的（带「昨天/前天/M月D日」等前缀）
-    const pastRe = sel.pastPrefixPattern ? new RegExp(sel.pastPrefixPattern) : /^(昨天|前天)/;
+    const pastRe = (sel && sel._compiledPastPrefix) ||
+      (selectors && selectors._compiled && selectors._compiled.todayDivider && selectors._compiled.todayDivider.pastPrefix) ||
+      (sel.pastPrefixPattern ? new RegExp(sel.pastPrefixPattern) : DEFAULT_COMPILED.todayDivider.pastPrefix);
     if (pastRe.test(t)) return false;
 
     const d = now instanceof Date ? now : new Date();
@@ -1030,7 +1101,11 @@
      * 跨午夜是真实踩过的坑：凌晨 00:06 执行时，昨晚 21:06 发的消息显示成「3小时前」，
      * 若直接判为今天，就会把「昨天已发」误认成「今天已发」而跳过，导致该续的火花没续。
      */
-    if (sel.todayRelativePattern && new RegExp(sel.todayRelativePattern).test(t)) {
+    const relRe = (sel && sel._compiledTodayRelative) ||
+      (selectors && selectors._compiled && selectors._compiled.todayDivider && selectors._compiled.todayDivider.todayRelative) ||
+      (sel.todayRelativePattern ? new RegExp(sel.todayRelativePattern) : DEFAULT_COMPILED.todayDivider.todayRelative);
+
+    if (relRe.test(t)) {
       const mins = relativeMinutes(t);
       if (mins === null) return true;
       return sameLocalDay(new Date(d.getTime() - mins * 60000), d);
@@ -1040,8 +1115,12 @@
      * 抖音超过几小时就不再显示「N小时前」，改显示时刻；跨天则一定带日期前缀。
      * 上面已排除过带前缀的情况，所以走到这里的纯时刻必然是今天。
      */
-    if (sel.todayClockPattern && new RegExp(sel.todayClockPattern).test(t)) {
-      const cm = /^(\d{1,2}):(\d{2})/.exec(t);
+    const clockRe = (sel && sel._compiledTodayClock) ||
+      (selectors && selectors._compiled && selectors._compiled.todayDivider && selectors._compiled.todayDivider.todayClock) ||
+      (sel.todayClockPattern ? new RegExp(sel.todayClockPattern) : DEFAULT_COMPILED.todayDivider.todayClock);
+
+    if (clockRe.test(t)) {
+      const cm = CLOCK_HM_RE.exec(t);
       if (!cm) return true;
       const stampMin = Number(cm[1]) * 60 + Number(cm[2]);
       const nowMin = d.getHours() * 60 + d.getMinutes();
@@ -1136,7 +1215,10 @@
         }
       }
       const t = text(node);
-      if (t && divSel.pastPrefixPattern && new RegExp(divSel.pastPrefixPattern).test(t)) return true;
+      const pastPrefixRe = (divSel && divSel._compiledPastPrefix) ||
+        (selectors && selectors._compiled && selectors._compiled.todayDivider && selectors._compiled.todayDivider.pastPrefix) ||
+        (divSel && divSel.pastPrefixPattern ? new RegExp(divSel.pastPrefixPattern) : DEFAULT_COMPILED.todayDivider.pastPrefix);
+      if (t && pastPrefixRe.test(t)) return true;
       return false;
     };
 

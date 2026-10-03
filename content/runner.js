@@ -178,8 +178,29 @@
     const items = S.findConversationItems(listEl, selectors);
     const ids = [];
     for (const el of items) {
+      if (!el || el.nodeType !== 1) continue;
+      // 1. 优先比对稳定头像特征（最准且快速）
       const key = S.conversationKey(el, selectors);
-      ids.push((key && key.avatar) || S.extractNickname(el, selectors) || '?');
+      if (key && key.avatar) {
+        ids.push(key.avatar);
+        continue;
+      }
+      // 2. 优先利用 DOM 节点的虚拟列表索引
+      const idx = el.getAttribute('data-index') || (el.parentElement && el.parentElement.getAttribute('data-index'));
+      if (idx !== null && idx !== undefined && idx !== '') {
+        ids.push('idx:' + idx);
+        continue;
+      }
+      // 3. 原生标题轻量提取，避免在 100ms 探测轮询中触发 cloneNode 与全量子节点清洗
+      const titleEl = el.querySelector && el.querySelector(
+        '[class*="Itemtitle"], [class*="itemTitle"], [class*="title"], [data-e2e*="title"]'
+      );
+      if (titleEl && titleEl.textContent) {
+        ids.push(titleEl.textContent.trim().slice(0, 30));
+        continue;
+      }
+      // 4. 最终兜底
+      ids.push((el.textContent || '').trim().slice(0, 30) || S.extractNickname(el, selectors) || '?');
     }
     return ids.join('|');
   }

@@ -57,7 +57,7 @@ function fmtTime(ts) {
 }
 
 function fmtDateTime(ts) {
-  if (!ts) return '--';
+  if (!ts) return '暂无';
   const d = new Date(ts);
   return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
@@ -71,109 +71,236 @@ function send(type, payload = {}) {
   });
 }
 
+function getEventIcon(event, level) {
+  if (level === 'error') return '❌';
+  if (level === 'warn') return '⚠️';
+  if (event === 'sent' || event === 'session_done' || event === 'run_done') return '🔥';
+  if (event === 'skipped_already_sent' || event === 'skipped_today') return '⏭️';
+  if (event === 'wrong_conversation' || event === 'no_identity' || event === 'chat_unreadable') return '⚠️';
+  if (event === 'blocked_login' || event === 'blocked_captcha' || event === 'send_failed' || event === 'run_failed' || event === 'run_error') return '❌';
+  return 'ℹ️';
+}
+
 function renderLogs(logs) {
   const ul = $('logs');
+  if (!ul) return;
   ul.textContent = '';
+
+  const countBadge = $('logCountBadge');
+  if (countBadge) {
+    countBadge.textContent = String((logs && logs.length) || 0);
+  }
+
   if (!logs || logs.length === 0) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = '暂无日志';
+    const icon = document.createElement('span');
+    icon.className = 'empty-icon';
+    icon.textContent = '📋';
+    const txt = document.createElement('span');
+    txt.textContent = '暂无执行日志';
+    li.append(icon, txt);
     ul.appendChild(li);
     return;
   }
-  for (const entry of logs.slice(0, 20)) {
+
+  for (const entry of logs.slice(0, 25)) {
     const li = document.createElement('li');
     li.className = entry.level || 'info';
+
+    const icon = document.createElement('span');
+    icon.className = 'log-icon';
+    icon.textContent = getEventIcon(entry.event, entry.level);
+
     const t = document.createElement('span');
     t.className = 't';
     t.textContent = fmtTime(entry.ts);
+
     const m = document.createElement('span');
     m.className = 'm';
     const label = EVENT_TEXT[entry.event] || entry.event;
-    // 昵称单独成 span 以便高亮（用 textContent，避免 innerHTML 注入风险）
+
+    // 昵称单独成 span 高亮
     if (entry.nickname) {
       const who = document.createElement('span');
       who.className = 'who';
-      who.textContent = entry.nickname + '：';
+      who.textContent = entry.nickname;
       m.appendChild(who);
     }
-    m.appendChild(document.createTextNode(label + (entry.detail ? ' — ' + entry.detail : '')));
-    li.append(t, m);
+    m.appendChild(document.createTextNode((entry.nickname ? ' ' : '') + label + (entry.detail ? ' — ' + entry.detail : '')));
+    li.append(icon, t, m);
     ul.appendChild(li);
   }
 }
 
-function describeToday(state, today, busy) {
-  if (busy) return { text: '正在执行…', cls: '' };
+function describeDashboard(state, today, busy, config) {
+  if (busy) {
+    return {
+      icon: '⚡',
+      headline: '正在自动续火花…',
+      subline: '正在执行私信扫描与发送流程',
+      statusText: '正在执行…',
+      statusCls: 'ok'
+    };
+  }
   if (state.lastSuccessDate === today) {
-    return { text: `已完成，发送 ${state.todaySentCount || 0} 人`, cls: 'ok' };
+    const count = state.todaySentCount || 0;
+    return {
+      icon: '🔥',
+      headline: '今日火花已全部续上',
+      subline: count > 0 ? `已成功向 ${count} 位好友发送火花` : '今天没有需要续火花的好友',
+      statusText: `已完成，发送 ${count} 人`,
+      statusCls: 'ok'
+    };
   }
   const r = state.lastResult;
   if (r && r.ok === false) {
     if (r.kind === 'abort') {
-      return { text: ABORT_REASON_TEXT[r.reason] || '需要人工处理', cls: 'err' };
+      const reasonText = ABORT_REASON_TEXT[r.reason] || r.detail || '需要人工处理';
+      return {
+        icon: '⚠️',
+        headline: '上次执行已中断',
+        subline: reasonText,
+        statusText: reasonText,
+        statusCls: 'err'
+      };
     }
-    return { text: '上次未完成，等待重试', cls: 'err' };
+    return {
+      icon: '❌',
+      headline: '上次执行未完成',
+      subline: r.detail || '等待下一次自动重试',
+      statusText: '上次未完成，等待重试',
+      statusCls: 'err'
+    };
   }
-  return { text: '今天尚未执行', cls: '' };
+  if (!config.autoRunEnabled) {
+    return {
+      icon: '⏸️',
+      headline: '自动续火已暂停',
+      subline: '可点击下方按钮手动执行一次',
+      statusText: '自动执行已关闭',
+      statusCls: ''
+    };
+  }
+  return {
+    icon: '✨',
+    headline: '今天尚未执行',
+    subline: '等待定时触发或点击下方立即执行',
+    statusText: '今天尚未执行',
+    statusCls: ''
+  };
 }
 
 function describeResult(result) {
-  if (!result) return { text: '--', cls: '' };
+  if (!result) return { text: '暂无', cls: '' };
   if (result.ok) {
-    return { text: `成功 ${result.sent}，跳过 ${result.skipped}，失败 ${result.failed}`, cls: 'ok' };
+    return { text: `成功 ${result.sent} / 跳过 ${result.skipped}`, cls: 'ok' };
   }
-  if (result.kind === 'abort') return { text: ABORT_REASON_TEXT[result.reason] || result.detail || '已中止', cls: 'err' };
+  if (result.kind === 'abort') {
+    return { text: ABORT_REASON_TEXT[result.reason] || result.detail || '已中止', cls: 'err' };
+  }
   return { text: result.detail || '失败', cls: 'err' };
 }
 
 async function refresh() {
   const data = await send(MSG.GET_STATE);
   if (!data || !data.state) {
-    $('todayStatus').textContent = '无法读取后台状态';
+    if ($('todayHeadline')) $('todayHeadline').textContent = '无法读取后台状态';
+    if ($('todayStatus')) $('todayStatus').textContent = '无法读取后台状态';
     return;
   }
   const { config, state, logs, busy, today } = data;
 
-  const pill = $('autoState');
-  pill.textContent = config.autoRunEnabled ? '自动执行：开' : '自动执行：关';
-  pill.className = 'pill ' + (config.autoRunEnabled ? 'on' : 'off');
+  // 状态指示器
+  const autoEl = $('autoState');
+  if (autoEl) {
+    const isAuto = Boolean(config.autoRunEnabled);
+    autoEl.className = 'status-indicator pill ' + (isAuto ? 'on' : 'off');
+    const textEl = autoEl.querySelector('.status-text');
+    if (textEl) {
+      textEl.textContent = isAuto ? '自动运行中' : '已暂停';
+    } else {
+      autoEl.textContent = isAuto ? '自动运行中' : '已暂停';
+    }
+  }
 
-  const todayInfo = describeToday(state, today, busy);
-  $('todayStatus').textContent = todayInfo.text;
-  $('todayStatus').className = 'value ' + todayInfo.cls;
+  // 状态看板
+  const info = describeDashboard(state, today, busy, config);
+  if ($('statusIcon')) $('statusIcon').textContent = info.icon;
+  if ($('todayHeadline')) $('todayHeadline').textContent = info.headline;
+  if ($('todaySubline')) $('todaySubline').textContent = info.subline;
+  if ($('todayStatus')) {
+    $('todayStatus').textContent = info.statusText;
+    $('todayStatus').className = 'value ' + info.statusCls;
+  }
 
-  $('lastRun').textContent = fmtDateTime(state.lastRunAt);
+  // 数据栅格
+  if ($('statTodayCount')) $('statTodayCount').textContent = String(state.todaySentCount || 0);
+
+  if ($('lastRun')) $('lastRun').textContent = fmtDateTime(state.lastRunAt);
 
   const resInfo = describeResult(state.lastResult);
-  $('lastResult').textContent = resInfo.text;
-  $('lastResult').className = 'value ' + resInfo.cls;
+  if ($('lastResult')) {
+    $('lastResult').textContent = resInfo.text;
+    $('lastResult').className = 'stat-val value ' + resInfo.cls;
+  }
 
-  $('runNow').disabled = Boolean(busy);
-  $('runNow').textContent = busy ? '执行中…' : '立即执行一次';
+  // 运行按钮
+  const runBtn = $('runNow');
+  if (runBtn) {
+    runBtn.disabled = Boolean(busy);
+    const textEl = runBtn.querySelector('.btn-text');
+    if (busy) {
+      runBtn.classList.add('loading');
+      if (textEl) textEl.textContent = '执行中…';
+      else runBtn.textContent = '执行中…';
+    } else {
+      runBtn.classList.remove('loading');
+      if (textEl) textEl.textContent = '立即执行一次';
+      else runBtn.textContent = '立即执行一次';
+    }
+  }
 
   renderLogs(logs);
 }
 
-$('runNow').addEventListener('click', async () => {
-  $('runNow').disabled = true;
-  $('runNow').textContent = '执行中…';
-  const resp = await send(MSG.MANUAL_RUN);
-  if (resp && resp.ok === false) {
-    $('todayStatus').textContent = resp.error || '启动失败';
-  }
-  setTimeout(refresh, 1200);
-});
+const runNowBtn = $('runNow');
+if (runNowBtn) {
+  runNowBtn.addEventListener('click', async () => {
+    runNowBtn.disabled = true;
+    runNowBtn.classList.add('loading');
+    const textEl = runNowBtn.querySelector('.btn-text');
+    if (textEl) textEl.textContent = '启动中…';
+    await send(MSG.RUN_NOW);
+    setTimeout(refresh, 600);
+  });
+}
 
-$('openOptions').addEventListener('click', () => {
-  if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
-  else chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
-});
+const openOptionsBtn = $('openOptions');
+if (openOptionsBtn) {
+  openOptionsBtn.addEventListener('click', () => {
+    if (chrome.runtime && chrome.runtime.openOptionsPage) {
+      chrome.runtime.openOptionsPage();
+    } else {
+      window.open(chrome.runtime.getURL('options/options.html'));
+    }
+  });
+}
 
-$('clearLogs').addEventListener('click', async () => {
-  await send(MSG.CLEAR_LOGS);
-  refresh();
-});
+const openChatBtn = $('openChat');
+if (openChatBtn) {
+  openChatBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://www.douyin.com/chat?isPopup=1' });
+  });
+}
+
+const clearLogsBtn = $('clearLogs');
+if (clearLogsBtn) {
+  clearLogsBtn.addEventListener('click', async () => {
+    await send(MSG.CLEAR_LOGS);
+    refresh();
+  });
+}
 
 refresh();
 setInterval(refresh, 3000);

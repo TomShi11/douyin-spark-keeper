@@ -2,43 +2,95 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>抖音续火花助手</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <span class="brand">🔥</span>
-      <h1>抖音续火花助手</h1>
-      <span id="autoState" class="pill">--</span>
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-badge">🔥</div>
+        <div class="brand-info">
+          <div class="brand-title-row">
+            <h1 class="brand-title">抖音续火花助手</h1>
+            <span class="version-tag">v2.0</span>
+          </div>
+        </div>
+      </div>
+      <div id="autoState" class="status-indicator on" title="自动运行状态">
+        <span class="dot"></span>
+        <span class="status-text">自动运行中</span>
+      </div>
     </header>
 
-    <section class="card">
-      <div class="row">
-        <span class="label">今日状态</span>
-        <span id="todayStatus" class="value">读取中…</span>
-      </div>
-      <div class="row">
-        <span class="label">上次执行</span>
-        <span id="lastRun" class="value">--</span>
-      </div>
-      <div class="row">
-        <span class="label">上次结果</span>
-        <span id="lastResult" class="value">--</span>
-      </div>
-    </section>
+    <main class="main-content">
+      <!-- 仪表盘看板卡片 -->
+      <section class="card dashboard-card">
+        <div class="status-banner" id="statusBanner">
+          <span id="statusIcon" class="status-icon">🔥</span>
+          <div class="status-texts">
+            <div id="todayHeadline" class="status-headline">正在读取状态…</div>
+            <div id="todaySubline" class="status-subline">请稍候</div>
+            <span id="todayStatus" class="sr-only">读取中…</span>
+          </div>
+        </div>
 
-    <section class="actions">
-      <button id="runNow" class="primary">立即执行一次</button>
-      <button id="openOptions">设置</button>
-    </section>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-value-group">
+              <span id="statTodayCount" class="stat-num">0</span>
+              <span class="stat-unit">人</span>
+            </div>
+            <span class="stat-label">今日续火</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value-group">
+              <span id="lastRun" class="stat-val">--</span>
+            </div>
+            <span class="stat-label">上次执行</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value-group">
+              <span id="lastResult" class="stat-val value">--</span>
+            </div>
+            <span class="stat-label">执行结果</span>
+          </div>
+        </div>
+      </section>
 
-    <section class="card">
-      <div class="logs-head">
-        <span class="label">最近日志</span>
-        <button id="clearLogs" class="link">清空</button>
-      </div>
-      <ul id="logs" class="logs"></ul>
-    </section>
+      <!-- 操作按钮组 -->
+      <section class="actions">
+        <button id="runNow" class="primary-btn primary">
+          <span class="btn-spinner" aria-hidden="true"></span>
+          <span class="btn-icon">⚡</span>
+          <span class="btn-text">立即执行一次</span>
+        </button>
+        <div class="action-subgroup">
+          <button id="openOptions" class="secondary-btn" title="打开扩展设置">
+            <span class="btn-icon">⚙️</span>
+            <span class="btn-text">设置</span>
+          </button>
+          <button id="openChat" class="secondary-btn" title="在网页中打开私信聊天">
+            <span class="btn-icon">💬</span>
+            <span class="btn-text">私信</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 日志面板卡片 -->
+      <section class="card logs-card">
+        <div class="logs-header">
+          <div class="logs-title-wrap">
+            <span class="logs-title">最近日志</span>
+            <span id="logCountBadge" class="count-badge">0</span>
+          </div>
+          <button id="clearLogs" class="link-btn link" title="清空日志记录">清空</button>
+        </div>
+        <ul id="logs" class="logs logs-list"></ul>
+      </section>
+    </main>
 
     <script src="popup.js" type="module"></script>
   </body>
